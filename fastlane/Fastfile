@@ -1,0 +1,36 @@
+default_platform(:android)
+
+platform :android do
+  desc "Submit a new Dev Build to Firebase App Distribution"
+  lane :distribute_dev do
+    gradle(task: "assembleDevDebug")
+
+    firebase_app_distribution(
+      app: ENV["FIREBASE_APP_ID_DEV"], # e.g. 1:1234567890:android:abc123def456
+      groups: "testers",
+      release_notes: "Dev build from Fastlane"
+    )
+  end
+
+  desc "Submit a new QA Build to Firebase App Distribution"
+  lane :distribute_qa do
+    gradle(task: "assembleQaDebug")
+
+    firebase_app_distribution(
+      app: ENV["FIREBASE_APP_ID_QA"],
+      groups: "testers",
+      release_notes: "QA build from Fastlane"
+    )
+  end
+
+  desc "Submit a new Prod Build to Firebase App Distribution"
+  lane :distribute_prod do
+    gradle(task: "assembleProdRelease")
+
+    firebase_app_distribution(
+      app: ENV["FIREBASE_APP_ID_PROD"],
+      groups: "testers",
+      release_notes: "Prod release build from Fastlane"
+    )
+  end
+end

@@ -1,0 +1,2 @@
+json_key_file("") # Path to the json auth file if needed for Google Play
+package_name("com.example.offlinegpt") # Default package name
