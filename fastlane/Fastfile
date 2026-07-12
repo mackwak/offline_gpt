@@ -3,12 +3,37 @@ default_platform(:android)
 platform :android do
   desc "Submit a new Dev Build to Firebase App Distribution"
   lane :distribute_dev do
-    gradle(task: "assembleDevDebug")
+    # 1. Get the latest build number from Firebase via lane context
+    # This requires a previous successful upload in the same session or
+    # using the specific action with a fetch.
+    begin
+      latest_release = firebase_app_distribution_get_latest_release(
+        app: ENV["FIREBASE_APP_ID_DEV"]
+      )
+      latest_build_number = latest_release[:build_version].to_i
+    rescue
+      UI.important("Could not fetch latest release from Firebase. Defaulting to 0.")
+      latest_build_number = 0
+    end
+
+    UI.message("Latest Build ID on Firebase: #{latest_build_number}")
+
+    # 2. Increment
+    new_build_number = latest_build_number + 1
+    UI.message("Next Build ID: #{new_build_number}")
+
+    gradle(
+      task: "assembleDevDebug",
+      properties: {
+        "android.injected.versionCode" => new_build_number
+      }
+    )
 
     firebase_app_distribution(
-      app: ENV["FIREBASE_APP_ID_DEV"], # e.g. 1:1234567890:android:abc123def456
+      app: ENV["FIREBASE_APP_ID_DEV"],
+      apk_path: "app/build/outputs/apk/dev/debug/app-dev-debug.apk",
       groups: "testers",
-      release_notes: "Dev build from Fastlane"
+      release_notes: "Dev build #{new_build_number} from Fastlane"
     )
   end
 
@@ -18,6 +43,7 @@ platform :android do
 
     firebase_app_distribution(
       app: ENV["FIREBASE_APP_ID_QA"],
+      apk_path: "app/build/outputs/apk/qa/debug/app-qa-debug.apk",
       groups: "testers",
       release_notes: "QA build from Fastlane"
     )
@@ -29,6 +55,7 @@ platform :android do
 
     firebase_app_distribution(
       app: ENV["FIREBASE_APP_ID_PROD"],
+      apk_path: "app/build/outputs/apk/prod/release/app-prod-release.apk",
       groups: "testers",
       release_notes: "Prod release build from Fastlane"
     )
