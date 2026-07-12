@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "528179899684",
+    "project_id": "offlinegpt-qa",
+    "storage_bucket": "offlinegpt-qa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:528179899684:android:87a098237cf5fa435b17b1",
+        "android_client_info": {
+          "package_name": "com.example.offlinegpt.qa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDulY4zP7bJVbGpZ0QJvuEapKR14BDeKi8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
