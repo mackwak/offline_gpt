@@ -10,8 +10,22 @@ platform :android do
      )
   end
 
+  desc "Run unit tests"
+  lane :test do
+    gradle(task: "testDevDebugUnitTest")
+  end
+
+  desc "Run UI tests (requires a connected device or emulator)"
+  lane :ui_test do
+    gradle(task: "connectedDevDebugAndroidTest")
+  end
+
   desc "Submit a new Dev Build to Firebase App Distribution"
   lane :distribute_dev do
+    # 0. Run tests
+    test
+    # ui_test # Uncomment this if you want to run UI tests automatically (requires device)
+
     # 1. Get the latest build number from Firebase
     latest_release = firebase_app_distribution_get_latest_release(
            app: ENV["FIREBASE_APP_ID_DEV"]

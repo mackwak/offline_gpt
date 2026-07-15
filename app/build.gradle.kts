@@ -14,10 +14,10 @@ android {
         applicationId = "com.example.offlinegpt"
         minSdk = 25
         targetSdk = 37
-        versionCode = 2
+        versionCode = 5
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"
     }
 
     flavorDimensions += "environment"
@@ -77,16 +77,32 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+    
+    // Hilt Testing
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
+    testImplementation(libs.hilt.android.testing)
+    kspTest(libs.hilt.compiler)
 
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.config)
 
+    androidTestImplementation(
+        "androidx.compose.ui:ui-test-junit4"
+    )
+
+    debugImplementation(
+        "androidx.compose.ui:ui-test-manifest"
+    )
+
     // Navigation
     implementation(libs.androidx.navigation.compose)
 
     testImplementation(libs.junit)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
