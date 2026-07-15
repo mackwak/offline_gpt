@@ -1,29 +1,34 @@
 default_platform(:android)
 
 platform :android do
+
+  private_lane :increment_version do |options|
+     puts "increments versions #{options}"
+     android_set_version_code(
+       gradle_file: "app/build.gradle.kts",
+       version_code: options[:version_code]
+     )
+  end
+
   desc "Submit a new Dev Build to Firebase App Distribution"
   lane :distribute_dev do
-    # 1. Get the latest build number from Firebase via lane context
-    # This requires a previous successful upload in the same session or
-    # using the specific action with a fetch.
-    begin
-      latest_release = firebase_app_distribution_get_latest_release(
-        app: ENV["FIREBASE_APP_ID_DEV"]
-      )
-      latest_build_number = latest_release[:build_version].to_i
-    rescue
-      UI.important("Could not fetch latest release from Firebase. Defaulting to 0.")
-      latest_build_number = 0
-    end
-
+    # 1. Get the latest build number from Firebase
+    latest_release = firebase_app_distribution_get_latest_release(
+           app: ENV["FIREBASE_APP_ID_DEV"]
+         )
+    latest_build_number = latest_release[:buildVersion].to_i
+    UI.message("latest_release on Firebase: #{latest_release}")
     UI.message("Latest Build ID on Firebase: #{latest_build_number}")
 
     # 2. Increment
     new_build_number = latest_build_number + 1
     UI.message("Next Build ID: #{new_build_number}")
 
+    # 3. Update local build.gradle.kts (optional, but requested via increment_version)
+    increment_version(version_code: new_build_number)
+
     gradle(
-      task: "assembleDevDebug",
+      task: "assembleDevRelease",
       properties: {
         "android.injected.versionCode" => new_build_number
       }
@@ -31,7 +36,7 @@ platform :android do
 
     firebase_app_distribution(
       app: ENV["FIREBASE_APP_ID_DEV"],
-      apk_path: "app/build/outputs/apk/dev/debug/app-dev-debug.apk",
+      apk_path: "app/build/outputs/apk/dev/release/app-dev-release.apk",
       groups: "testers",
       release_notes: "Dev build #{new_build_number} from Fastlane"
     )
@@ -39,11 +44,27 @@ platform :android do
 
   desc "Submit a new QA Build to Firebase App Distribution"
   lane :distribute_qa do
+
+        latest_release = firebase_app_distribution_get_latest_release(
+               app: ENV["FIREBASE_APP_ID_QA"]
+             )
+        latest_build_number = latest_release[:buildVersion].to_i
+        UI.message("latest_release on Firebase: #{latest_release}")
+        UI.message("Latest Build ID on Firebase: #{latest_build_number}")
+
+        # 2. Increment
+        new_build_number = latest_build_number + 1
+        UI.message("Next Build ID: #{new_build_number}")
+
+        # 3. Update local build.gradle.kts (optional, but requested via increment_version)
+        increment_version(version_code: new_build_number)
+
+
     gradle(task: "assembleQaDebug")
 
     firebase_app_distribution(
       app: ENV["FIREBASE_APP_ID_QA"],
-      apk_path: "app/build/outputs/apk/qa/debug/app-qa-debug.apk",
+      apk_path: "app/build/outputs/apk/qa/release/app-qa-release.apk",
       groups: "testers",
       release_notes: "QA build from Fastlane"
     )
@@ -51,6 +72,22 @@ platform :android do
 
   desc "Submit a new Prod Build to Firebase App Distribution"
   lane :distribute_prod do
+
+        latest_release = firebase_app_distribution_get_latest_release(
+               app: ENV["FIREBASE_APP_ID_PROD"]
+             )
+        latest_build_number = latest_release[:buildVersion].to_i
+        UI.message("latest_release on Firebase: #{latest_release}")
+        UI.message("Latest Build ID on Firebase: #{latest_build_number}")
+
+        # 2. Increment
+        new_build_number = latest_build_number + 1
+        UI.message("Next Build ID: #{new_build_number}")
+
+        # 3. Update local build.gradle.kts (optional, but requested via increment_version)
+        increment_version(version_code: new_build_number)
+
+
     gradle(task: "assembleProdRelease")
 
     firebase_app_distribution(

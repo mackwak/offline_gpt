@@ -37,8 +37,18 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(project.findProperty("KEYSTORE_PATH") ?: "")
+            storePassword = project.findProperty("KEYSTORE_PASSWORD") as String?
+            keyAlias = project.findProperty("KEY_ALIAS") as String?
+            keyPassword = project.findProperty("KEY_PASSWORD") as String?
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = false
             }
