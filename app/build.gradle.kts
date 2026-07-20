@@ -14,7 +14,7 @@ android {
         applicationId = "com.example.offlinegpt"
         minSdk = 25
         targetSdk = 37
-        versionCode = 5
+        versionCode = 6
         versionName = "1.0"
 
         testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"

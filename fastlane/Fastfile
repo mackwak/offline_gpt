@@ -17,8 +17,10 @@ platform :android do
 
   desc "Run UI tests (requires a connected device or emulator)"
   lane :ui_test do
-    gradle(   task: "connectedDevDebugAndroidTest",
-                flags: "--stacktrace --info")
+    gradle(
+      task: "assembleDevDebug assembleDevDebugAndroidTest"
+    )
+    sh("gcloud firebase test android run --type instrumentation --app /Users/dongpilkwak/AndroidStudioProjects/OfflineGPT/app/build/outputs/apk/dev/debug/app-dev-debug.apk --test /Users/dongpilkwak/AndroidStudioProjects/OfflineGPT/app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait")
   end
 
   desc "Submit a new Dev Build to Firebase App Distribution"
@@ -26,7 +28,7 @@ platform :android do
     # 0. Run tests
     test
     # ui_test # Uncomment this if you want to run UI tests automatically (requires device)
-
+    ui_test
     # 1. Get the latest build number from Firebase
     latest_release = firebase_app_distribution_get_latest_release(
            app: ENV["FIREBASE_APP_ID_DEV"]
