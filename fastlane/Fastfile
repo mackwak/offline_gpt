@@ -20,7 +20,7 @@ platform :android do
     gradle(
       task: "assembleDevDebug assembleDevDebugAndroidTest"
     )
-    sh("gcloud firebase test android run --type instrumentation --app /Users/dongpilkwak/AndroidStudioProjects/OfflineGPT/app/build/outputs/apk/dev/debug/app-dev-debug.apk --test /Users/dongpilkwak/AndroidStudioProjects/OfflineGPT/app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait")
+    sh("gcloud firebase test android run --type instrumentation --app app/build/outputs/apk/dev/debug/app-dev-debug.apk --test app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait")
   end
 
   desc "Submit a new Dev Build to Firebase App Distribution"
