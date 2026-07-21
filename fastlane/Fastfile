@@ -23,6 +23,14 @@ platform :android do
     sh("gcloud --project=offlinegpt-dev firebase test android run --type instrumentation --app /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/dev/debug/app-dev-debug.apk --test /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait --results-bucket=mactest")
   end
 
+ desc "Run UI tests (requires a connected device or emulator)"
+  lane :ui_test_qa do
+    gradle(
+      task: "assembleDevDebug assembleDevDebugAndroidTest"
+    )
+    sh("gcloud --project=offlinegpt-qa firebase test android run --type instrumentation --app /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/dev/debug/app-dev-debug.apk --test /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait --results-bucket=mactest2")
+  end
+
   desc "Submit a new Dev Build to Firebase App Distribution"
   lane :distribute_dev do
     app_id = ENV["FIREBASE_APP_ID_DEV"]
@@ -67,7 +75,7 @@ platform :android do
   lane :distribute_qa do
 
     test
-    ui_test
+    ui_test_qa
     app_id = ENV["FIREBASE_APP_ID_QA"]
     UI.user_error!("FIREBASE_APP_ID_QA environment variable is empty") if app_id.to_s.empty?
 
