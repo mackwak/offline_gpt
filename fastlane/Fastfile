@@ -82,6 +82,7 @@ platform :android do
       }
     )
 
+
     firebase_app_distribution(
       app: ENV["FIREBASE_APP_ID_QA"],
       apk_path: "app/build/outputs/apk/qa/release/app-qa-release.apk",
