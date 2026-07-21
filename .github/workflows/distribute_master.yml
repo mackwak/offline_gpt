@@ -42,16 +42,6 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release.jks
 
-      - name: Run Fastlane Distribute QA
-        env:
-          FIREBASE_APP_ID_QA: ${{ secrets.FIREBASE_APP_ID_QA }}
-          ORG_GRADLE_PROJECT_KEYSTORE_PATH: "release.jks"
-          ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          ORG_GRADLE_PROJECT_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
-        run: bundle exec fastlane distribute_qa
-
       - name: Run Fastlane Distribute Prod
         env:
           FIREBASE_APP_ID_PROD: ${{ secrets.FIREBASE_APP_ID_PROD }}
