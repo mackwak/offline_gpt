@@ -62,6 +62,9 @@ platform :android do
 
   desc "Submit a new QA Build to Firebase App Distribution"
   lane :distribute_qa do
+
+    test
+    ui_test
     app_id = ENV["FIREBASE_APP_ID_QA"]
     UI.user_error!("FIREBASE_APP_ID_QA environment variable is empty") if app_id.to_s.empty?
 
