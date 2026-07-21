@@ -31,7 +31,7 @@ platform :android do
     latest_release = firebase_app_distribution_get_latest_release(
            app: ENV["FIREBASE_APP_ID_DEV"]
          )
-    latest_build_number = latest_release[:buildVersion].to_i
+    latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
     UI.message("latest_release on Firebase: #{latest_release}")
     UI.message("Latest Build ID on Firebase: #{latest_build_number}")
 
@@ -65,7 +65,7 @@ platform :android do
         latest_release = firebase_app_distribution_get_latest_release(
                app: ENV["FIREBASE_APP_ID_QA"]
              )
-        latest_build_number = latest_release[:buildVersion].to_i
+        latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
         UI.message("latest_release on Firebase: #{latest_release}")
         UI.message("Latest Build ID on Firebase: #{latest_build_number}")
 
@@ -93,7 +93,7 @@ platform :android do
         latest_release = firebase_app_distribution_get_latest_release(
                app: ENV["FIREBASE_APP_ID_PROD"]
              )
-        latest_build_number = latest_release[:buildVersion].to_i
+        latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
         UI.message("latest_release on Firebase: #{latest_release}")
         UI.message("Latest Build ID on Firebase: #{latest_build_number}")
 
