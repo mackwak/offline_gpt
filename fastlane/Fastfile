@@ -25,11 +25,14 @@ platform :android do
 
   desc "Submit a new Dev Build to Firebase App Distribution"
   lane :distribute_dev do
+    app_id = ENV["FIREBASE_APP_ID_DEV"]
+    UI.user_error!("FIREBASE_APP_ID_DEV environment variable is empty") if app_id.to_s.empty?
+
     # 0. Run tests
     test
     # 1. Get the latest build number from Firebase
     latest_release = firebase_app_distribution_get_latest_release(
-           app: ENV["FIREBASE_APP_ID_DEV"]
+           app: app_id
          )
     latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
     UI.message("latest_release on Firebase: #{latest_release}")
@@ -59,10 +62,12 @@ platform :android do
 
   desc "Submit a new QA Build to Firebase App Distribution"
   lane :distribute_qa do
+    app_id = ENV["FIREBASE_APP_ID_QA"]
+    UI.user_error!("FIREBASE_APP_ID_QA environment variable is empty") if app_id.to_s.empty?
 
-        latest_release = firebase_app_distribution_get_latest_release(
-               app: ENV["FIREBASE_APP_ID_QA"]
-             )
+    latest_release = firebase_app_distribution_get_latest_release(
+           app: app_id
+         )
         latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
         UI.message("latest_release on Firebase: #{latest_release}")
         UI.message("Latest Build ID on Firebase: #{latest_build_number}")
@@ -93,10 +98,12 @@ platform :android do
 
   desc "Submit a new Prod Build to Firebase App Distribution"
   lane :distribute_prod do
+    app_id = ENV["FIREBASE_APP_ID_PROD"]
+    UI.user_error!("FIREBASE_APP_ID_PROD environment variable is empty") if app_id.to_s.empty?
 
-        latest_release = firebase_app_distribution_get_latest_release(
-               app: ENV["FIREBASE_APP_ID_PROD"]
-             )
+    latest_release = firebase_app_distribution_get_latest_release(
+           app: app_id
+         )
         latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
         UI.message("latest_release on Firebase: #{latest_release}")
         UI.message("Latest Build ID on Firebase: #{latest_build_number}")
