@@ -1,4 +1,4 @@
-name: Distribute qa/prod
+name: Distribute qa
 
 on:
   push:

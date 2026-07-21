@@ -137,7 +137,7 @@ platform :android do
 
     firebase_app_distribution(
       app: ENV["FIREBASE_APP_ID_PROD"],
-      apk_path: "/home/runner/work/offline_gpt/offline_gpt/      apk_path: "/home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/prod/release/app-prod-release.apk",
+      apk_path: "/home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/prod/release/app-prod-release.apk",
       groups: "testers",
       release_notes: "Prod release build from Fastlane"
     )
