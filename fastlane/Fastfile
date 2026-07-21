@@ -20,7 +20,7 @@ platform :android do
     gradle(
       task: "assembleDevDebug assembleDevDebugAndroidTest"
     )
-    sh("gcloud firebase test android run --type instrumentation --app app/build/outputs/apk/dev/debug/app-dev-debug.apk --test app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait")
+    sh("gcloud --project=offlinegpt-dev firebase test android run --type instrumentation --app /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/dev/debug/app-dev-debug.apk --test /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait --results-bucket=mactest")
   end
 
   desc "Submit a new Dev Build to Firebase App Distribution"
@@ -53,7 +53,7 @@ platform :android do
 
     firebase_app_distribution(
       app: ENV["FIREBASE_APP_ID_DEV"],
-      apk_path: "app/build/outputs/apk/dev/release/app-dev-release.apk",
+      apk_path: "/home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/dev/release/app-dev-release.apk",
       groups: "testers",
       release_notes: "Dev build #{new_build_number} from Fastlane"
     )
@@ -62,6 +62,8 @@ platform :android do
   desc "Submit a new QA Build to Firebase App Distribution"
   lane :distribute_qa do
 
+        test
+        ui_test
         latest_release = firebase_app_distribution_get_latest_release(
                app: ENV["FIREBASE_APP_ID_QA"]
              )
@@ -81,7 +83,7 @@ platform :android do
 
     firebase_app_distribution(
       app: ENV["FIREBASE_APP_ID_QA"],
-      apk_path: "app/build/outputs/apk/qa/release/app-qa-release.apk",
+      apk_path: "/home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/qa/release/app-qa-release.apk",
       groups: "testers",
       release_notes: "QA build from Fastlane"
     )
@@ -90,6 +92,8 @@ platform :android do
   desc "Submit a new Prod Build to Firebase App Distribution"
   lane :distribute_prod do
 
+        test
+        ui_test
         latest_release = firebase_app_distribution_get_latest_release(
                app: ENV["FIREBASE_APP_ID_PROD"]
              )
@@ -109,7 +113,7 @@ platform :android do
 
     firebase_app_distribution(
       app: ENV["FIREBASE_APP_ID_PROD"],
-      apk_path: "app/build/outputs/apk/prod/release/app-prod-release.apk",
+      apk_path: "/home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/prod/release/app-prod-release.apk",
       groups: "testers",
       release_notes: "Prod release build from Fastlane"
     )
