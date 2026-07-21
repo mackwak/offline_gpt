@@ -31,10 +31,13 @@ platform :android do
     # 0. Run tests
     test
     # 1. Get the latest build number from Firebase
-    latest_release = firebase_app_distribution_get_latest_release(
-           app: app_id
-         )
-    latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
+    begin
+      latest_release = firebase_app_distribution_get_latest_release(app: app_id)
+      latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
+    rescue => e
+      UI.important("Could not fetch latest release from Firebase (maybe no builds yet?): #{e.message}")
+      latest_build_number = 0
+    end
     UI.message("latest_release on Firebase: #{latest_release}")
     UI.message("Latest Build ID on Firebase: #{latest_build_number}")
 
@@ -68,11 +71,14 @@ platform :android do
     app_id = ENV["FIREBASE_APP_ID_QA"]
     UI.user_error!("FIREBASE_APP_ID_QA environment variable is empty") if app_id.to_s.empty?
 
-    latest_release = firebase_app_distribution_get_latest_release(
-           app: app_id
-         )
-        latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
-        UI.message("latest_release on Firebase: #{latest_release}")
+    begin
+      latest_release = firebase_app_distribution_get_latest_release(app: app_id)
+      latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
+    rescue => e
+      UI.important("Could not fetch latest release from Firebase (maybe no builds yet?): #{e.message}")
+      latest_build_number = 0
+    end
+    UI.message("latest_release on Firebase: #{latest_release}")
         UI.message("Latest Build ID on Firebase: #{latest_build_number}")
 
         # 2. Increment
@@ -104,11 +110,14 @@ platform :android do
     app_id = ENV["FIREBASE_APP_ID_PROD"]
     UI.user_error!("FIREBASE_APP_ID_PROD environment variable is empty") if app_id.to_s.empty?
 
-    latest_release = firebase_app_distribution_get_latest_release(
-           app: app_id
-         )
-        latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
-        UI.message("latest_release on Firebase: #{latest_release}")
+    begin
+      latest_release = firebase_app_distribution_get_latest_release(app: app_id)
+      latest_build_number = latest_release ? latest_release[:buildVersion].to_i : 0
+    rescue => e
+      UI.important("Could not fetch latest release from Firebase (maybe no builds yet?): #{e.message}")
+      latest_build_number = 0
+    end
+    UI.message("latest_release on Firebase: #{latest_release}")
         UI.message("Latest Build ID on Firebase: #{latest_build_number}")
 
         # 2. Increment
