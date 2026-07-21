@@ -44,7 +44,7 @@ jobs:
 
       - name: Run Fastlane Distribute QA
         env:
-          FIREBASE_APP_ID_DEV: ${{ secrets.FIREBASE_APP_ID_QA }}
+          FIREBASE_APP_ID_QA: ${{ secrets.FIREBASE_APP_ID_QA }}
           ORG_GRADLE_PROJECT_KEYSTORE_PATH: "release.jks"
           ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -54,7 +54,7 @@ jobs:
 
       - name: Run Fastlane Distribute Prod
         env:
-          FIREBASE_APP_ID_DEV: ${{ secrets.FIREBASE_APP_ID_PROD }}
+          FIREBASE_APP_ID_PROD: ${{ secrets.FIREBASE_APP_ID_PROD }}
           ORG_GRADLE_PROJECT_KEYSTORE_PATH: "release.jks"
           ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
