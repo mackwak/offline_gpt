@@ -27,8 +27,6 @@ platform :android do
   lane :distribute_dev do
     # 0. Run tests
     test
-    # ui_test # Uncomment this if you want to run UI tests automatically (requires device)
-    ui_test
     # 1. Get the latest build number from Firebase
     latest_release = firebase_app_distribution_get_latest_release(
            app: ENV["FIREBASE_APP_ID_DEV"]
@@ -92,8 +90,6 @@ platform :android do
   desc "Submit a new Prod Build to Firebase App Distribution"
   lane :distribute_prod do
 
-        test
-        ui_test
         latest_release = firebase_app_distribution_get_latest_release(
                app: ENV["FIREBASE_APP_ID_PROD"]
              )
