@@ -1,4 +1,4 @@
-name: Distribute Dev
+name: Distribute qa/prod
 
 on:
   push:
