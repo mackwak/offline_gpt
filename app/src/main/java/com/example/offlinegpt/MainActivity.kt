@@ -17,9 +17,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navigation
 import com.example.offlinegpt.ui.auth.AuthViewModel
 import com.example.offlinegpt.ui.auth.LoginScreen
 import com.example.offlinegpt.ui.auth.SignupScreen
+import com.example.offlinegpt.ui.chat.ChatDetailScreen
+import com.example.offlinegpt.ui.chat.ChatListScreen
+import com.example.offlinegpt.ui.chat.ChatViewModel
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -31,8 +35,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             OfflineGPTTheme {
                 val navController = rememberNavController()
-                val viewModel: AuthViewModel = hiltViewModel()
-                val startDestination = if (viewModel.isLoggedIn) "home" else "login"
+                val authViewModel: AuthViewModel = hiltViewModel()
+                val startDestination = if (authViewModel.isLoggedIn) "home" else "login"
 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     NavHost(
@@ -41,25 +45,22 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding)
                     ) {
                         composable("login") {
-                            val viewModel: AuthViewModel = hiltViewModel()
                             LoginScreen(
-                                viewModel = viewModel,
+                                viewModel = authViewModel,
                                 onNavigateToSignup = { navController.navigate("signup") },
                                 onLoginSuccess = { navController.navigate("home") }
                             )
                         }
                         composable("signup") {
-                            val viewModel: AuthViewModel = hiltViewModel()
                             SignupScreen(
-                                viewModel = viewModel,
+                                viewModel = authViewModel,
                                 onNavigateBack = { navController.popBackStack() },
                                 onSignupSuccess = { navController.navigate("home") }
                             )
                         }
                         composable("home") {
-                            val viewModel: AuthViewModel = hiltViewModel()
                             LaunchedEffect(Unit) {
-                                viewModel.events.collect { event ->
+                                authViewModel.events.collect { event ->
                                     if (event is AuthViewModel.AuthEvent.Logout) {
                                         navController.navigate("login") {
                                             popUpTo("home") { inclusive = true }
@@ -67,7 +68,29 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            HomeScreen(onLogout = { viewModel.onLogoutClick() })
+                            HomeScreen(
+                                onLogout = { authViewModel.onLogoutClick() },
+                                onNavigateToChats = { navController.navigate("chat_list") }
+                            )
+                        }
+                        composable("chat_list") {
+                            val chatViewModel: ChatViewModel = hiltViewModel()
+                            ChatListScreen(
+                                viewModel = chatViewModel,
+                                onChatClick = { sessionId ->
+                                    navController.navigate("chat_detail/$sessionId")
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("chat_detail/{sessionId}") { backStackEntry ->
+                            val chatViewModel: ChatViewModel = hiltViewModel()
+                            val sessionId = backStackEntry.arguments?.getString("sessionId")?.toLong() ?: 0L
+                            ChatDetailScreen(
+                                viewModel = chatViewModel,
+                                sessionId = sessionId,
+                                onBack = { navController.popBackStack() }
+                            )
                         }
                     }
                 }
@@ -77,9 +100,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HomeScreen(onLogout: () -> Unit) {
+fun HomeScreen(onLogout: () -> Unit, onNavigateToChats: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
         Text(text = "Welcome to OfflineGPT!")
+        Button(onClick = onNavigateToChats) {
+            Text("My Chats")
+        }
         Button(onClick = onLogout) {
             Text("Logout")
         }
