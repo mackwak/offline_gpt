@@ -25,6 +25,7 @@ fun ChatDetailScreen(
     onBack: () -> Unit
 ) {
     val messages by viewModel.messages.collectAsState()
+    val streamingText by viewModel.currentStreamingText.collectAsState()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -33,10 +34,13 @@ fun ChatDetailScreen(
         viewModel.selectSession(sessionId)
     }
 
-    // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+    // Auto-scroll to bottom when new messages arrive or while streaming
+    LaunchedEffect(messages.size, streamingText) {
+        if (messages.isNotEmpty() || streamingText != null) {
+            val lastIndex = messages.size + (if (streamingText != null) 0 else -1)
+            if (lastIndex >= 0) {
+                listState.animateScrollToItem(lastIndex)
+            }
         }
     }
 
@@ -72,6 +76,32 @@ fun ChatDetailScreen(
             items(messages) { message ->
                 MessageBubble(message)
             }
+            streamingText?.let { text ->
+                item {
+                    StreamingBubble(text)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StreamingBubble(content: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(
+                text = content,
+                modifier = Modifier.padding(8.dp),
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
     }
 }
