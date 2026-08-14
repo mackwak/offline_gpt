@@ -15,6 +15,7 @@ import com.example.offlinegpt.data.engine.LiteRTLMEngine
 import com.example.offlinegpt.data.local.ChatMessage
 import com.example.offlinegpt.data.local.ChatSession
 import com.example.offlinegpt.data.repository.ChatRepository
+import com.example.offlinegpt.data.repository.RagRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,9 +37,13 @@ import javax.inject.Inject
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val repository: ChatRepository,
+    private val ragRepository: RagRepository,
     private val auth: FirebaseAuth,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private val _searchResults = MutableStateFlow<List<String>>(emptyList())
+    val searchResults: StateFlow<List<String>> = _searchResults
 
     val liteRTLMEngine = LiteRTLMEngine()
     private val userEmail: String
@@ -58,23 +63,32 @@ class ChatViewModel @Inject constructor(
 
     fun downloadModelFile(): Long? {
 
-        val fileName = "all-MiniLM-L6-v2-quant.tflite"
+        /*
+    if (!isWifiConnected()) {
+        _currentStreamingText.value = "Error: Wi-Fi is required for model download."
+        return null
+    }
+    */
+
+        val fileName = "universal-sentence-encoder.tflite"
         val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
 
         if (targetFile.exists() && targetFile.length() > 0) {
             return null
         }
-        val modelUrl = "https://huggingface.co/Nihal2000/all-MiniLM-L6-v2-quant.tflite/resolve/main/${fileName}"
+
+        _currentStreamingText.value = "Downloading now..."
+        val modelUrl = "https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/latest/universal_sentence_encoder.tflite"
 
         Log.d("Model Download", "Model URL: $modelUrl")
 
         val request = DownloadManager.Request(Uri.parse(modelUrl))
-            .setTitle("Downloading Gemma Embedding Model")
-            .setDescription("Downloading on-device AI Embedding weights...")
+            .setTitle("Downloading Text Embedding Model")
+            .setDescription("Downloading MediaPipe compatible embedding weights...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-            .setAllowedOverMetered(false)
-            .setAllowedOverRoaming(false)
+         //   .setAllowedOverMetered(false)
+         //   .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         return manager.enqueue(request)
@@ -82,10 +96,12 @@ class ChatViewModel @Inject constructor(
     }
     fun downloadGemma4Model(): Long? {
         // 1. Verify Wi-Fi availability before initiating download
+        /*
         if (!isWifiConnected()) {
             _currentStreamingText.value = "Error: Wi-Fi is required for model download."
             return null
         }
+        */
 
         val fileName = "gemma-4-E2B-it.litertlm"
         val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
@@ -101,8 +117,8 @@ class ChatViewModel @Inject constructor(
             .setDescription("Downloading on-device AI weights...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-            .setAllowedOverMetered(false)
-            .setAllowedOverRoaming(false)
+         //   .setAllowedOverMetered(false)
+         //   .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         return manager.enqueue(request)
@@ -118,7 +134,15 @@ class ChatViewModel @Inject constructor(
     fun checkIfEmbeddingFileExist(): Boolean {
         val modelFile = File(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-            "all-MiniLM-L6-v2-quant.tflite"
+            "universal-sentence-encoder.tflite"
+        )
+        return modelFile.exists()
+    }
+
+    fun checkIfFileExist(): Boolean {
+        val modelFile = File(
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+            "gemma-4-E2B-it.litertlm"
         )
         return modelFile.exists()
     }
@@ -200,6 +224,18 @@ class ChatViewModel @Inject constructor(
                 _currentSessionId.value = null
                 _messages.value = emptyList()
             }
+        }
+    }
+
+    fun seedContext(contexts: Array<String>) {
+        viewModelScope.launch {
+            ragRepository.ingestContexts(contexts)
+        }
+    }
+
+    fun queryContexts(query: String) {
+        viewModelScope.launch {
+            _searchResults.value = ragRepository.searchSimilarContexts(query)
         }
     }
 }

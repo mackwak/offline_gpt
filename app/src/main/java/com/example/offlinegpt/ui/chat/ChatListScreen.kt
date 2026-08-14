@@ -49,8 +49,24 @@ fun ChatListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "New Chat")
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                FloatingActionButton(onClick = {
+                    viewModel.seedContext(
+                        arrayOf(
+                            "Dongpil Kwak is from korea",
+                            "He is Mobile developer"
+                        )
+                    )
+                }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add context")
+                }
+
+                FloatingActionButton(onClick = { showAddDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "New Chat")
+                }
             }
         }
     ) { padding ->
