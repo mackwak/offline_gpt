@@ -2,8 +2,11 @@ package com.example.offlinegpt.ui.chat
 
 import android.app.DownloadManager
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Environment
+import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -27,6 +30,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.net.URL
 import javax.inject.Inject
 
 @HiltViewModel
@@ -52,21 +56,76 @@ class ChatViewModel @Inject constructor(
     private val _currentSessionId = mutableStateOf<Long?>(null)
     val currentSessionId: State<Long?> = _currentSessionId
 
-    fun downloadGemma4Model() {
-        val modelUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm"
+    fun downloadModelFile(): Long? {
+
+        val fileName = "all-MiniLM-L6-v2-quant.tflite"
+        val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
+
+        if (targetFile.exists() && targetFile.length() > 0) {
+            return null
+        }
+        val modelUrl = "https://huggingface.co/Nihal2000/all-MiniLM-L6-v2-quant.tflite/resolve/main/${fileName}"
+
+        Log.d("Model Download", "Model URL: $modelUrl")
 
         val request = DownloadManager.Request(Uri.parse(modelUrl))
-            .setTitle("Downloading Gemma 4 Model")
-            .setDescription("Downloading on-device AI weights...")
+            .setTitle("Downloading Gemma Embedding Model")
+            .setDescription("Downloading on-device AI Embedding weights...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "gemma-4-E2B-it.litertlm")
-            .setAllowedOverMetered(false) // Require Wi-Fi by default for large files
+            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
+            .setAllowedOverMetered(false)
+            .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        manager.enqueue(request)
+        return manager.enqueue(request)
+
+    }
+    fun downloadGemma4Model(): Long? {
+        // 1. Verify Wi-Fi availability before initiating download
+        if (!isWifiConnected()) {
+            _currentStreamingText.value = "Error: Wi-Fi is required for model download."
+            return null
+        }
+
+        val fileName = "gemma-4-E2B-it.litertlm"
+        val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
+
+        if (targetFile.exists() && targetFile.length() > 0) {
+            return null
+        }
+
+        val modelUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/$fileName"
+
+        val request = DownloadManager.Request(Uri.parse(modelUrl))
+            .setTitle("Downloading Gemma Model")
+            .setDescription("Downloading on-device AI weights...")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
+            .setAllowedOverMetered(false)
+            .setAllowedOverRoaming(false)
+
+        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        return manager.enqueue(request)
+    }
+
+    private fun isWifiConnected(): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    fun checkIfEmbeddingFileExist(): Boolean {
+        val modelFile = File(
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+            "all-MiniLM-L6-v2-quant.tflite"
+        )
+        return modelFile.exists()
     }
     
     fun selectSession(sessionId: Long) {
+
+        // check if file exist
 
         val modelFile = File(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),

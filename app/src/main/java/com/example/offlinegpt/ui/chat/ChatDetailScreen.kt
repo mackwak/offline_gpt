@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,7 +29,6 @@ fun ChatDetailScreen(
     val streamingText by viewModel.currentStreamingText.collectAsState()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(sessionId) {
         viewModel.selectSession(sessionId)
@@ -37,10 +37,7 @@ fun ChatDetailScreen(
     // Auto-scroll to bottom when new messages arrive or while streaming
     LaunchedEffect(messages.size, streamingText) {
         if (messages.isNotEmpty() || streamingText != null) {
-            val lastIndex = messages.size + (if (streamingText != null) 0 else -1)
-            if (lastIndex >= 0) {
-                listState.animateScrollToItem(lastIndex)
-            }
+            listState.scrollToItem(0)
         }
     }
 
@@ -50,7 +47,7 @@ fun ChatDetailScreen(
                 title = { Text("Chat") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -68,18 +65,19 @@ fun ChatDetailScreen(
     ) { padding ->
         LazyColumn(
             state = listState,
+            reverseLayout = true,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 8.dp)
         ) {
-            items(messages) { message ->
-                MessageBubble(message)
-            }
             streamingText?.let { text ->
                 item {
                     StreamingBubble(text)
                 }
+            }
+            items(messages.asReversed()) { message ->
+                MessageBubble(message)
             }
         }
     }

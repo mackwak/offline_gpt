@@ -20,13 +20,6 @@ android {
         testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"
     }
 
-    configurations.all {
-        resolutionStrategy {
-            force(libs.kotlinx.coroutines.core)
-            force(libs.kotlinx.coroutines.android)
-        }
-    }
-
     flavorDimensions += "environment"
     productFlavors {
         create("dev") {
@@ -80,10 +73,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.16.0")
     // Coroutines & Lifecycle
+    implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.androidx.lifecycle.viewmodel.ktx)
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

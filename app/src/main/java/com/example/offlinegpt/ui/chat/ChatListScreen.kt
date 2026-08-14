@@ -5,13 +5,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import android.app.Activity
 import com.example.offlinegpt.data.local.ChatSession
 import java.text.SimpleDateFormat
 import java.util.*
@@ -26,13 +32,18 @@ fun ChatListScreen(
     val sessions by viewModel.sessions.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
 
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        onDispose {}
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("My Chats") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Text("Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
