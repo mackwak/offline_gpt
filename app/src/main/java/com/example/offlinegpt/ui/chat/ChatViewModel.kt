@@ -63,12 +63,10 @@ class ChatViewModel @Inject constructor(
 
     fun downloadModelFile(): Long? {
 
-        /*
     if (!isWifiConnected()) {
         _currentStreamingText.value = "Error: Wi-Fi is required for model download."
         return null
     }
-    */
 
         val fileName = "universal-sentence-encoder.tflite"
         val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
@@ -87,8 +85,8 @@ class ChatViewModel @Inject constructor(
             .setDescription("Downloading MediaPipe compatible embedding weights...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-         //   .setAllowedOverMetered(false)
-         //   .setAllowedOverRoaming(false)
+             .setAllowedOverMetered(false)
+            .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         return manager.enqueue(request)
@@ -96,12 +94,12 @@ class ChatViewModel @Inject constructor(
     }
     fun downloadGemma4Model(): Long? {
         // 1. Verify Wi-Fi availability before initiating download
-        /*
+
         if (!isWifiConnected()) {
             _currentStreamingText.value = "Error: Wi-Fi is required for model download."
             return null
         }
-        */
+
 
         val fileName = "gemma-4-E2B-it.litertlm"
         val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
@@ -117,8 +115,8 @@ class ChatViewModel @Inject constructor(
             .setDescription("Downloading on-device AI weights...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-         //   .setAllowedOverMetered(false)
-         //   .setAllowedOverRoaming(false)
+             .setAllowedOverMetered(false)
+            .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         return manager.enqueue(request)
@@ -192,7 +190,19 @@ class ChatViewModel @Inject constructor(
                 // We move the collection to Dispatchers.Default to ensure the native 
                 // 'callback_thread_pool' is not hindered by UI thread contention.
                 withContext(Dispatchers.Default) {
-                    liteRTLMEngine.sendMessageStream(content)
+                    
+                    // use Rag searchSimilarContexts
+                    val relevantContexts = ragRepository.searchSimilarContexts(content)
+                    
+                    val augmentedPrompt = if (relevantContexts.isNotEmpty()) {
+                        "Context:\n" + 
+                        relevantContexts.joinToString("\n") + 
+                        "\n\nQuestion: $content"
+                    } else {
+                        content
+                    }
+                    
+                    liteRTLMEngine.sendMessageStream(augmentedPrompt)
                         .catch { error ->
                             _currentStreamingText.value = "Error: ${error.localizedMessage}"
                         }
@@ -230,6 +240,12 @@ class ChatViewModel @Inject constructor(
     fun seedContext(contexts: Array<String>) {
         viewModelScope.launch {
             ragRepository.ingestContexts(contexts)
+        }
+    }
+
+    fun clearContext() {
+        viewModelScope.launch {
+            ragRepository.clear()
         }
     }
 

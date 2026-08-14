@@ -14,6 +14,9 @@ interface ContextDao {
 
     @Query("SELECT * FROM rag_contexts")
     suspend fun getAllContexts(): List<ContextEntity>
+
+    @Query("DELETE FROM rag_contexts")
+    suspend fun removeAll(): Unit
 }
 
 // Math extension for vector similarity matching

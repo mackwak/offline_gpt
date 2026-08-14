@@ -1,5 +1,6 @@
 package com.example.offlinegpt.data.repository
 
+import android.util.Log
 import com.example.offlinegpt.data.local.ContextDao
 import com.example.offlinegpt.data.local.ContextEntity
 import com.example.offlinegpt.data.local.cosineSimilarity
@@ -27,10 +28,16 @@ class RagRepository @Inject constructor(
         val queryResult = textEmbedder.embed(userQuery)
         val queryVector = queryResult.embeddingResult().embeddings().first().floatEmbedding()
 
+        Log.d("RagRepository", "getAllContexts size: ${dao.getAllContexts().map { record -> record.text to queryVector.cosineSimilarity(record.embedding)}}")
+
         return dao.getAllContexts()
             .map { record -> record.text to queryVector.cosineSimilarity(record.embedding) }
             .sortedByDescending { it.second }
             .take(topK)
             .map { it.first }
+    }
+
+    suspend fun clear() {
+        return dao.removeAll()
     }
 }
