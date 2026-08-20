@@ -193,15 +193,17 @@ class ChatViewModel @Inject constructor(
                     
                     // use Rag searchSimilarContexts
                     val relevantContexts = ragRepository.searchSimilarContexts(content)
-                    
+
                     val augmentedPrompt = if (relevantContexts.isNotEmpty()) {
-                        "Context:\n" + 
+                        "Context:\n" + messages.value.filter { it.isUser }.map { it.content }.toString() + "\n" +
                         relevantContexts.joinToString("\n") + 
                         "\n\nQuestion: $content"
                     } else {
                         content
                     }
-                    
+
+                    Log.d("ChatViewModel", "Augmented prompt: $augmentedPrompt")
+
                     liteRTLMEngine.sendMessageStream(augmentedPrompt)
                         .catch { error ->
                             _currentStreamingText.value = "Error: ${error.localizedMessage}"
