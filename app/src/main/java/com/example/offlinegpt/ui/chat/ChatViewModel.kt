@@ -243,6 +243,54 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun ingestPdf(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                inputStream?.use { stream ->
+                    val document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(stream)
+                    val totalPages = document.numberOfPages
+                    Log.d("ChatViewModel", "PDF loaded. Total pages: $totalPages")
+
+                    val chunks = mutableListOf<String>()
+                    val stripper = com.tom_roush.pdfbox.text.PDFTextStripper()
+
+                    // Extract text page by page to ensure we get everything and create manageable chunks
+                    for (page in 1..totalPages) {
+                        stripper.startPage = page
+                        stripper.endPage = page
+                        val pageText = stripper.getText(document).trim()
+                        
+                        if (pageText.isNotEmpty()) {
+                            // Further split page text by paragraphs if it's very long, 
+                            // or just add the whole page as a chunk.
+                            val paragraphs = pageText.split(Regex("\\n\\s*\\n"))
+                                .map { it.trim() }
+                                .filter { it.length > 20 }
+                            
+                            chunks.addAll(paragraphs)
+                        }
+                    }
+                    document.close()
+
+                    Log.d("ChatViewModel", "Total chunks created: ${chunks.size}")
+
+                    if (chunks.isNotEmpty()) {
+                        ragRepository.ingestContexts(chunks.toTypedArray())
+                        withContext(Dispatchers.Main) {
+                            _searchResults.value = listOf("Successfully ingested PDF ($totalPages pages, ${chunks.size} chunks)")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Error ingesting PDF", e)
+                withContext(Dispatchers.Main) {
+                    _searchResults.value = listOf("Error ingesting PDF: ${e.message}")
+                }
+            }
+        }
+    }
+
     fun clearContext() {
         viewModelScope.launch {
             ragRepository.clear()

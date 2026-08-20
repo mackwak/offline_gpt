@@ -28,7 +28,7 @@ class RagRepository @Inject constructor(
         val queryResult = textEmbedder.embed(userQuery)
         val queryVector = queryResult.embeddingResult().embeddings().first().floatEmbedding()
 
-        Log.d("RagRepository", "getAllContexts size: ${dao.getAllContexts().map { record -> record.text to queryVector.cosineSimilarity(record.embedding)}}")
+        Log.d("RagRepository", "getAllContexts size: ${dao.getAllContexts().size}}")
 
         return dao.getAllContexts()
             .map { record -> record.text to queryVector.cosineSimilarity(record.embedding) }
