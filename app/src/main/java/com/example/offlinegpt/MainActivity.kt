@@ -109,33 +109,26 @@ fun HomeScreen(onLogout: () -> Unit, onNavigateToChats: () -> Unit) {
     ) {
         Text(text = "Welcome to OfflineGPT!")
 
-        if (chatViewModel.checkIfEmbeddingFileExist()) {
-            Button(onClick = onNavigateToChats) {
-                Text("My Embedding Chats")
-            }
-        } else {
+        if (!chatViewModel.checkIfEmbeddingFileExist()) {
             Button(onClick = { chatViewModel.downloadModelFile() }) {
+                Text("Download Embedding Model")
+            }
+        }
+        if (!chatViewModel.checkIfFileExist()) {
+            Button(onClick = { chatViewModel.downloadGemma4Model() }) {
                 Text("Download Gemma 4 Model")
             }
         }
 
-        /*
-        if (chatViewModel.checkIfFileExist()) {
+        if (chatViewModel.checkIfFileExist() && chatViewModel.checkIfEmbeddingFileExist()) {
             Button(onClick = onNavigateToChats) {
                 Text("My Chats")
             }
-        } else {
-
-            errorMessage.value?.let {
-                Text("Error: ${it}")
-            } ?: run {
-                Button(onClick = { chatViewModel.downloadGemma4Model() }) {
-                    Text("Download Gemma 4 Model")
-                }
-            }
-
         }
-*/
+
+        errorMessage.value?.let {
+            Text("${it}")
+        }
 
         Button(onClick = onLogout) {
             Text("Logout")

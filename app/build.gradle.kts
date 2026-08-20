@@ -73,7 +73,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation("com.google.ai.edge.litertlm:litertlm-android:0.16.0")
+    implementation(libs.mediapipe.tasks.core)
+    implementation(libs.mediapipe.tasks.text)
+    implementation(libs.litertlm.android)
     // Coroutines & Lifecycle
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
@@ -108,6 +110,8 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
+
+    implementation(libs.pdfbox.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.hilt.android.testing)

@@ -15,6 +15,7 @@ import com.example.offlinegpt.data.engine.LiteRTLMEngine
 import com.example.offlinegpt.data.local.ChatMessage
 import com.example.offlinegpt.data.local.ChatSession
 import com.example.offlinegpt.data.repository.ChatRepository
+import com.example.offlinegpt.data.repository.RagRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,9 +37,13 @@ import javax.inject.Inject
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val repository: ChatRepository,
+    private val ragRepository: RagRepository,
     private val auth: FirebaseAuth,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private val _searchResults = MutableStateFlow<List<String>>(emptyList())
+    val searchResults: StateFlow<List<String>> = _searchResults
 
     val liteRTLMEngine = LiteRTLMEngine()
     private val userEmail: String
@@ -58,22 +63,29 @@ class ChatViewModel @Inject constructor(
 
     fun downloadModelFile(): Long? {
 
-        val fileName = "all-MiniLM-L6-v2-quant.tflite"
+    if (!isWifiConnected()) {
+        _currentStreamingText.value = "Error: Wi-Fi is required for model download."
+        return null
+    }
+
+        val fileName = "universal-sentence-encoder.tflite"
         val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
 
         if (targetFile.exists() && targetFile.length() > 0) {
             return null
         }
-        val modelUrl = "https://huggingface.co/Nihal2000/all-MiniLM-L6-v2-quant.tflite/resolve/main/${fileName}"
+
+        _currentStreamingText.value = "Downloading now..."
+        val modelUrl = "https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/latest/universal_sentence_encoder.tflite"
 
         Log.d("Model Download", "Model URL: $modelUrl")
 
         val request = DownloadManager.Request(Uri.parse(modelUrl))
-            .setTitle("Downloading Gemma Embedding Model")
-            .setDescription("Downloading on-device AI Embedding weights...")
+            .setTitle("Downloading Text Embedding Model")
+            .setDescription("Downloading MediaPipe compatible embedding weights...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-            .setAllowedOverMetered(false)
+             .setAllowedOverMetered(false)
             .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -82,10 +94,12 @@ class ChatViewModel @Inject constructor(
     }
     fun downloadGemma4Model(): Long? {
         // 1. Verify Wi-Fi availability before initiating download
+
         if (!isWifiConnected()) {
             _currentStreamingText.value = "Error: Wi-Fi is required for model download."
             return null
         }
+
 
         val fileName = "gemma-4-E2B-it.litertlm"
         val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
@@ -101,7 +115,7 @@ class ChatViewModel @Inject constructor(
             .setDescription("Downloading on-device AI weights...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-            .setAllowedOverMetered(false)
+             .setAllowedOverMetered(false)
             .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -118,7 +132,15 @@ class ChatViewModel @Inject constructor(
     fun checkIfEmbeddingFileExist(): Boolean {
         val modelFile = File(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-            "all-MiniLM-L6-v2-quant.tflite"
+            "universal-sentence-encoder.tflite"
+        )
+        return modelFile.exists()
+    }
+
+    fun checkIfFileExist(): Boolean {
+        val modelFile = File(
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+            "gemma-4-E2B-it.litertlm"
         )
         return modelFile.exists()
     }
@@ -168,7 +190,21 @@ class ChatViewModel @Inject constructor(
                 // We move the collection to Dispatchers.Default to ensure the native 
                 // 'callback_thread_pool' is not hindered by UI thread contention.
                 withContext(Dispatchers.Default) {
-                    liteRTLMEngine.sendMessageStream(content)
+                    
+                    // use Rag searchSimilarContexts
+                    val relevantContexts = ragRepository.searchSimilarContexts(content)
+
+                    val augmentedPrompt = if (relevantContexts.isNotEmpty()) {
+                        "Context:\n" + messages.value.filter { it.isUser }.map { it.content }.toString() + "\n" +
+                        relevantContexts.joinToString("\n") + 
+                        "\n\nQuestion: $content"
+                    } else {
+                        content
+                    }
+
+                    Log.d("ChatViewModel", "Augmented prompt: $augmentedPrompt")
+
+                    liteRTLMEngine.sendMessageStream(augmentedPrompt)
                         .catch { error ->
                             _currentStreamingText.value = "Error: ${error.localizedMessage}"
                         }
@@ -200,6 +236,72 @@ class ChatViewModel @Inject constructor(
                 _currentSessionId.value = null
                 _messages.value = emptyList()
             }
+        }
+    }
+
+    fun seedContext(contexts: Array<String>) {
+        viewModelScope.launch {
+            ragRepository.ingestContexts(contexts)
+        }
+    }
+
+    fun ingestPdf(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                inputStream?.use { stream ->
+                    val document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(stream)
+                    val totalPages = document.numberOfPages
+                    Log.d("ChatViewModel", "PDF loaded. Total pages: $totalPages")
+
+                    val chunks = mutableListOf<String>()
+                    val stripper = com.tom_roush.pdfbox.text.PDFTextStripper()
+
+                    // Extract text page by page to ensure we get everything and create manageable chunks
+                    for (page in 1..totalPages) {
+                        stripper.startPage = page
+                        stripper.endPage = page
+                        val pageText = stripper.getText(document).trim()
+                        
+                        if (pageText.isNotEmpty()) {
+                            // Further split page text by paragraphs if it's very long, 
+                            // or just add the whole page as a chunk.
+                            val paragraphs = pageText.split(Regex("\\n\\s*\\n"))
+                                .map { it.trim() }
+                                .filter { it.length > 20 }
+                            
+                            chunks.addAll(paragraphs)
+                        }
+                    }
+                    document.close()
+
+                    Log.d("ChatViewModel", "Total chunks created: ${chunks.size}")
+
+                    if (chunks.isNotEmpty()) {
+                        ragRepository.ingestContexts(chunks.toTypedArray())
+                        withContext(Dispatchers.Main) {
+                            _searchResults.value = listOf("Successfully ingested PDF ($totalPages pages, ${chunks.size} chunks)")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Error ingesting PDF", e)
+                withContext(Dispatchers.Main) {
+                    _searchResults.value = listOf("Error ingesting PDF: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun clearContext() {
+        viewModelScope.launch {
+            ragRepository.clear()
+        }
+    }
+
+    fun queryContexts(query: String) {
+        viewModelScope.launch {
+            _searchResults.value = ragRepository.searchSimilarContexts(query)
         }
     }
 }
