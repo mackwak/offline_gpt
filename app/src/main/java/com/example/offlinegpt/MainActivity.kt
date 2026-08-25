@@ -25,6 +25,7 @@ import com.example.offlinegpt.ui.auth.SignupScreen
 import com.example.offlinegpt.ui.chat.ChatDetailScreen
 import com.example.offlinegpt.ui.chat.ChatListScreen
 import com.example.offlinegpt.ui.chat.ChatViewModel
+import com.example.offlinegpt.ui.calculator.CalculatorScreen
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -70,7 +71,8 @@ class MainActivity : ComponentActivity() {
                         }
                         HomeScreen(
                             onLogout = { authViewModel.onLogoutClick() },
-                            onNavigateToChats = { navController.navigate("chat_list") }
+                            onNavigateToChats = { navController.navigate("chat_list") },
+                            onNavigateToCalculator = { navController.navigate("calculator") }
                         )
                     }
                     composable("chat_list") {
@@ -92,6 +94,11 @@ class MainActivity : ComponentActivity() {
                             onBack = { navController.popBackStack() }
                         )
                     }
+                    composable("calculator") {
+                        CalculatorScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
                 }
             }
         }
@@ -99,7 +106,11 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HomeScreen(onLogout: () -> Unit, onNavigateToChats: () -> Unit) {
+fun HomeScreen(
+    onLogout: () -> Unit,
+    onNavigateToChats: () -> Unit,
+    onNavigateToCalculator: () -> Unit
+) {
     val chatViewModel: ChatViewModel = hiltViewModel()
     val errorMessage = chatViewModel.currentStreamingText.collectAsState(null)
     Column(
@@ -119,23 +130,9 @@ fun HomeScreen(onLogout: () -> Unit, onNavigateToChats: () -> Unit) {
             }
         }
 
-        /*
-        if (chatViewModel.checkIfFileExist()) {
-            Button(onClick = onNavigateToChats) {
-                Text("My Chats")
-            }
-        } else {
-
-            errorMessage.value?.let {
-                Text("Error: ${it}")
-            } ?: run {
-                Button(onClick = { chatViewModel.downloadGemma4Model() }) {
-                    Text("Download Gemma 4 Model")
-                }
-            }
-
+        Button(onClick = onNavigateToCalculator) {
+            Text("Calculator")
         }
-*/
 
         Button(onClick = onLogout) {
             Text("Logout")
