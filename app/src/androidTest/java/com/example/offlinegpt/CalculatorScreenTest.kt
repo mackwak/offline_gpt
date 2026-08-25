@@ -17,6 +17,9 @@ import javax.inject.Inject
 @RunWith(AndroidJUnit4::class)
 class CalculatorScreenTest {
 
+    @Inject
+    lateinit var auth: FirebaseAuth
+
     @get:Rule(order = 0)
     val hiltRule = HiltAndroidRule(this)
 
@@ -40,7 +43,7 @@ class CalculatorScreenTest {
         composeTestRule.onNodeWithText("+").performClick()
 
         // Verify result
-        composeTestRule.onNodeWithText("Result: 15.0").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Congratulations! Result: 15.0").assertIsDisplayed()
     }
 
     @Test
@@ -60,6 +63,26 @@ class CalculatorScreenTest {
         composeTestRule.onNodeWithText("-").performClick()
 
         // Verify result
-        composeTestRule.onNodeWithText("Result: 12.0").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Congratulations! Result: 12.0").assertIsDisplayed()
+    }
+
+    @Test
+    fun calculator_invalidInput_showsFailed() {
+        hiltRule.inject()
+        composeTestRule.setContent {
+            OfflineGPTTheme {
+                CalculatorScreen(onBack = {})
+            }
+        }
+
+        // Input invalid number
+        composeTestRule.onNodeWithText("Number 1").performTextInput("abc")
+        composeTestRule.onNodeWithText("Number 2").performTextInput("5")
+
+        // Click add
+        composeTestRule.onNodeWithText("+").performClick()
+
+        // Verify failure message
+        composeTestRule.onNodeWithText("Failed: Invalid input").assertIsDisplayed()
     }
 }

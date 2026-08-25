@@ -59,11 +59,27 @@ fun CalculatorScreen(
                     Text("-")
                 }
             }
-            Text(
-                text = "Result: ${viewModel.result}",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(top = 16.dp)
-            )
+            
+            viewModel.operationResult?.let { result ->
+                when (result) {
+                    is OperationResult.Congratulations -> {
+                        Text(
+                            text = "Congratulations! Result: ${result.result}",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                    }
+                    is OperationResult.Failed -> {
+                        Text(
+                            text = "Failed: ${result.error}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

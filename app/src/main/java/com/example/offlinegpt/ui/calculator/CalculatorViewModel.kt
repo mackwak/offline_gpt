@@ -15,18 +15,32 @@ class CalculatorViewModel @Inject constructor(
 
     var number1 by mutableStateOf("")
     var number2 by mutableStateOf("")
-    var result by mutableStateOf("")
+    var operationResult by mutableStateOf<OperationResult?>(null)
         private set
 
     fun onPlusClick() {
-        val n1 = number1.toDoubleOrNull() ?: 0.0
-        val n2 = number2.toDoubleOrNull() ?: 0.0
-        result = calculatorService.plus(n1, n2).toString()
+        val n1 = number1.toDoubleOrNull()
+        val n2 = number2.toDoubleOrNull()
+        
+        if (n1 == null || n2 == null) {
+            operationResult = OperationResult.Failed("Invalid input")
+            return
+        }
+        
+        val res = calculatorService.plus(n1, n2)
+        operationResult = OperationResult.Congratulations(res.toString())
     }
 
     fun onMinusClick() {
-        val n1 = number1.toDoubleOrNull() ?: 0.0
-        val n2 = number2.toDoubleOrNull() ?: 0.0
-        result = calculatorService.minus(n1, n2).toString()
+        val n1 = number1.toDoubleOrNull()
+        val n2 = number2.toDoubleOrNull()
+
+        if (n1 == null || n2 == null) {
+            operationResult = OperationResult.Failed("Invalid input")
+            return
+        }
+
+        val res = calculatorService.minus(n1, n2)
+        operationResult = OperationResult.Congratulations(res.toString())
     }
 }
