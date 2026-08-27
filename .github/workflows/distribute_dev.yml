@@ -3,7 +3,7 @@ name: Distribute Dev
 on:
   push:
     branches:
-      - dev
+      - DEV
   workflow_dispatch:
 
 jobs:
