@@ -26,6 +26,7 @@ import com.example.offlinegpt.ui.chat.ChatDetailScreen
 import com.example.offlinegpt.ui.chat.ChatListScreen
 import com.example.offlinegpt.ui.chat.ChatViewModel
 import com.example.offlinegpt.ui.calculator.CalculatorScreen
+import com.example.offlinegpt.ui.compass.CompassScreen
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -72,7 +73,8 @@ class MainActivity : ComponentActivity() {
                         HomeScreen(
                             onLogout = { authViewModel.onLogoutClick() },
                             onNavigateToChats = { navController.navigate("chat_list") },
-                            onNavigateToCalculator = { navController.navigate("calculator") }
+                            onNavigateToCalculator = { navController.navigate("calculator") },
+                            onNavigateToCompass = { navController.navigate("compass") }
                         )
                     }
                     composable("chat_list") {
@@ -99,6 +101,11 @@ class MainActivity : ComponentActivity() {
                             onBack = { navController.popBackStack() }
                         )
                     }
+                    composable("compass") {
+                        CompassScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
                 }
             }
         }
@@ -109,7 +116,8 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(
     onLogout: () -> Unit,
     onNavigateToChats: () -> Unit,
-    onNavigateToCalculator: () -> Unit
+    onNavigateToCalculator: () -> Unit,
+    onNavigateToCompass: () -> Unit
 ) {
     val chatViewModel: ChatViewModel = hiltViewModel()
     val errorMessage = chatViewModel.currentStreamingText.collectAsState(null)
@@ -132,6 +140,10 @@ fun HomeScreen(
 
         Button(onClick = onNavigateToCalculator) {
             Text("Calculator")
+        }
+
+        Button(onClick = onNavigateToCompass) {
+            Text("Compass")
         }
 
         Button(onClick = onLogout) {
