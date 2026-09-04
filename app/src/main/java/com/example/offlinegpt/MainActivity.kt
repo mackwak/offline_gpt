@@ -1,9 +1,12 @@
 package com.example.offlinegpt
 
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Column
@@ -40,6 +43,19 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val authViewModel: AuthViewModel = hiltViewModel()
                 val startDestination = if (authViewModel.isLoggedIn) "home" else "login"
+
+                val locationPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestMultiplePermissions()
+                ) { }
+
+                LaunchedEffect(Unit) {
+                    locationPermissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                }
 
                 NavHost(
                     navController = navController,
@@ -102,6 +118,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("compass") {
+                        val chatViewModel: ChatViewModel = hiltViewModel()
                         CompassScreen(
                             onBack = { navController.popBackStack() }
                         )
@@ -128,13 +145,19 @@ fun HomeScreen(
     ) {
         Text(text = "Welcome to OfflineGPT!")
 
-        if (chatViewModel.checkIfEmbeddingFileExist()) {
+        if (chatViewModel.checkIfGemmaModelExist()) {
             Button(onClick = onNavigateToChats) {
                 Text("My Embedding Chats")
             }
         } else {
-            Button(onClick = { chatViewModel.downloadModelFile() }) {
+            Button(onClick = { chatViewModel.downloadGemma4Model() }) {
                 Text("Download Gemma 4 Model")
+            }
+        }
+
+        if (!chatViewModel.checkIfEmbeddingFileExist()) {
+            Button(onClick = { chatViewModel.downloadModelFile() }) {
+                Text("Download Embedding Model")
             }
         }
 

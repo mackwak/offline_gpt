@@ -12,13 +12,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.offlinegpt.data.engine.LiteRTLMEngine
+import com.example.offlinegpt.data.location.LocationProvider
 import com.example.offlinegpt.data.local.ChatMessage
 import com.example.offlinegpt.data.local.ChatSession
 import com.example.offlinegpt.data.repository.ChatRepository
+import com.example.offlinegpt.util.tts.TextToSpeechManager
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,12 +34,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val repository: ChatRepository,
     private val auth: FirebaseAuth,
+    private val locationProvider: LocationProvider,
+    private val ttsManager: TextToSpeechManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -55,6 +63,9 @@ class ChatViewModel @Inject constructor(
 
     private val _currentSessionId = mutableStateOf<Long?>(null)
     val currentSessionId: State<Long?> = _currentSessionId
+
+    private val _aiLocationInfo = MutableStateFlow<String?>(null)
+    val aiLocationInfo: StateFlow<String?> = _aiLocationInfo.asStateFlow()
 
     fun downloadModelFile(): Long? {
 
@@ -122,6 +133,16 @@ class ChatViewModel @Inject constructor(
         )
         return modelFile.exists()
     }
+
+    // create function to check if file gemma model exist
+    fun checkIfGemmaModelExist(): Boolean {
+        val modelFile = File(
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+            "gemma-4-E2B-it.litertlm"
+        )
+        return modelFile.exists()
+    }
+
     
     fun selectSession(sessionId: Long) {
 
@@ -145,11 +166,43 @@ class ChatViewModel @Inject constructor(
     }
 
     fun createNewSession(title: String) {
-       // downloadGemma4Model()
         viewModelScope.launch {
             val id = repository.createSession(userEmail, title)
             selectSession(id)
         }
+    }
+
+    // getCurrentResponse
+    suspend fun getCurrentResponse(prompt: String): String {
+        // Ensure engine is initialized
+        if (!liteRTLMEngine.isInitialized()) {
+            val modelFile = File(
+                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                "gemma-4-E2B-it.litertlm"
+            )
+            if (modelFile.exists()) {
+                liteRTLMEngine.initialize(modelFile.absolutePath)
+            } else {
+                return "Error: Gemma model not found. Please download it first."
+            }
+        }
+
+        val responseBuilder = StringBuilder()
+        try {
+            withContext(Dispatchers.Default) {
+                liteRTLMEngine.sendMessageStream(prompt)
+                    .catch { error ->
+                        responseBuilder.append("Error: ${error.localizedMessage}")
+                    }
+                    .collect { chunk ->
+                        responseBuilder.append(chunk.toString())
+                    }
+            }
+        } catch (e: Exception) {
+            return "Error: ${e.localizedMessage}"
+        }
+        
+        return responseBuilder.toString()
     }
 
     fun sendMessage(content: String) {
@@ -201,5 +254,31 @@ class ChatViewModel @Inject constructor(
                 _messages.value = emptyList()
             }
         }
+    }
+
+    fun askWhereAmI(compassHeading: String) {
+        val location = locationProvider.getCurrentLocation()
+        val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+        
+        val prompt = if (location != null) {
+            val address = locationProvider.getAddressFromLocation(location)
+            "I am currently facing $compassHeading. The current time is $time, and my location is $address. Based on this, please describe where I am, tell me the exact time, and explain where the sun is likely positioned in the sky relative to my current position."
+        } else {
+            "I am currently facing $compassHeading. The current time is $time. I couldn't retrieve my precise location. Based on this, please tell me what time it is, let me know that my location is unavailable, and mention where the sun would typically be at this time of day."
+        }
+
+        viewModelScope.launch {
+            Log.d("Location Info prompt", prompt)
+            _aiLocationInfo.value = "Thinking..."
+            val locationInfo = getCurrentResponse(prompt)
+            _aiLocationInfo.value = locationInfo
+            ttsManager.speak(locationInfo)
+            Log.d("Location Info", locationInfo)
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        ttsManager.shutdown()
     }
 }
