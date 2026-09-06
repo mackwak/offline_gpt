@@ -1,5 +1,8 @@
 package com.example.offlinegpt.ui.chat
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,8 +32,16 @@ fun ChatDetailScreen(
 ) {
     val messages by viewModel.messages.collectAsState()
     val streamingText by viewModel.currentStreamingText.collectAsState()
+    val currentSession by viewModel.currentSession.collectAsState()
+    val isIngesting by viewModel.isIngesting.collectAsState()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    val pdfPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.ingestPdf(it) }
+    }
 
     LaunchedEffect(sessionId) {
         viewModel.selectSession(sessionId)
@@ -45,7 +57,7 @@ fun ChatDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Chat") },
+                title = { Text(currentSession?.title ?: "Chat") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -60,7 +72,12 @@ fun ChatDetailScreen(
                 onSend = {
                     viewModel.sendMessage(inputText)
                     inputText = ""
-                }
+                },
+                isRag = currentSession?.title == "RAG",
+                onAttachFile = {
+                    pdfPickerLauncher.launch("application/pdf")
+                },
+                isIngesting = isIngesting
             )
         }
     ) { padding ->
@@ -133,7 +150,10 @@ fun MessageBubble(message: ChatMessage) {
 fun ChatInput(
     text: String,
     onTextChange: (String) -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    isRag: Boolean = false,
+    onAttachFile: () -> Unit = {},
+    isIngesting: Boolean = false
 ) {
     Surface(tonalElevation = 2.dp) {
         Row(
@@ -144,21 +164,42 @@ fun ChatInput(
                 .imePadding(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (isRag) {
+                IconButton(
+                    onClick = onAttachFile
+                ) {
+                    Icon(Icons.Default.AttachFile, contentDescription = "Attach PDF")
+                }
+            }
             Spacer(modifier = Modifier.width(4.dp))
             TextField(
                 value = text,
                 onValueChange = onTextChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Type a message...") },
+                placeholder = { 
+                    Text("Type a message...")
+                },
                 maxLines = 4
             )
             Spacer(modifier = Modifier.width(8.dp))
-            IconButton(
-                onClick = onSend,
-                enabled = text.isNotBlank()
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+
+            if (isRag) {
+                IconButton(
+                    onClick = onSend,
+                    enabled = isIngesting && text.isNotBlank()
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                }
+            } else {
+                IconButton(
+                    onClick = onSend,
+                    enabled = text.isNotBlank()
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                }
             }
+
+
         }
     }
 }

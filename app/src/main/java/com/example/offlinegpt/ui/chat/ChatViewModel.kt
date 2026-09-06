@@ -57,11 +57,17 @@ class ChatViewModel @Inject constructor(
     private val _currentStreamingText = MutableStateFlow<String?>(null)
     val currentStreamingText: StateFlow<String?> = _currentStreamingText.asStateFlow()
 
+    private val _currentSession = MutableStateFlow<ChatSession?>(null)
+    val currentSession: StateFlow<ChatSession?> = _currentSession.asStateFlow()
+
     private val _currentSessionId = mutableStateOf<Long?>(null)
     val currentSessionId: State<Long?> = _currentSessionId
 
     private val _aiLocationInfo = MutableStateFlow<String?>(null)
     val aiLocationInfo: StateFlow<String?> = _aiLocationInfo.asStateFlow()
+
+    private val _isIngesting = MutableStateFlow(false)
+    val isIngesting: StateFlow<Boolean> = _isIngesting.asStateFlow()
 
     fun downloadModelFile(): Long? {
         val fileName = "all-MiniLM-L6-v2-quant.tflite"
@@ -137,6 +143,7 @@ class ChatViewModel @Inject constructor(
     }
     
     fun selectSession(sessionId: Long) {
+        _isIngesting.value = false
         val modelFile = File(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
             "gemma-4-E2B-it.litertlm"
@@ -152,6 +159,11 @@ class ChatViewModel @Inject constructor(
             if (modelFile.exists() && !liteRTLMEngine.isInitialized()) {
                 liteRTLMEngine.initialize(modelFile.absolutePath)
             }
+
+            // Get session info - use first() to ensure we get data even if 'sessions' value is currently empty
+            _currentSession.value = sessions.value.find { it.id == sessionId } 
+                ?: repository.getAllSessions(userEmail).first().find { it.id == sessionId }
+
             repository.getMessagesForSession(sessionId).collect {
                 _messages.value = it
             }
@@ -215,7 +227,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun sendMessage(content: String) {
-        val sessionId = _currentSessionId.value ?: return
+        val sessionId = currentSessionId.value ?: return
         if (content.isBlank()) return
 
         viewModelScope.launch {
@@ -294,7 +306,9 @@ class ChatViewModel @Inject constructor(
     }
 
     fun ingestPdf(uri: Uri) {
-        // RAG functionality disabled due to missing repository
+        viewModelScope.launch {
+            _isIngesting.value = true
+        }
     }
 
     override fun onCleared() {
