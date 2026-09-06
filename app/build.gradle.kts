@@ -105,7 +105,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     // MediaPipe for Embeddings
-    implementation(libs.mediapipe.tasks.text)
+    implementation("org.tensorflow:tensorflow-lite-metadata:0.4.4")
 
     // Room
     implementation(libs.room.runtime)
