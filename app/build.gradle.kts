@@ -104,6 +104,9 @@ dependencies {
     // Navigation
     implementation(libs.androidx.navigation.compose)
 
+    // MediaPipe for Embeddings
+    implementation(libs.mediapipe.tasks.text)
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

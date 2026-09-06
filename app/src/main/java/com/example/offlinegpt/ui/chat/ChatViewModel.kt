@@ -11,11 +11,13 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.offlinegpt.data.engine.EmbeddingEngine
 import com.example.offlinegpt.data.engine.LiteRTLMEngine
 import com.example.offlinegpt.data.location.LocationProvider
 import com.example.offlinegpt.data.local.ChatMessage
 import com.example.offlinegpt.data.local.ChatSession
 import com.example.offlinegpt.data.repository.ChatRepository
+import com.example.offlinegpt.data.repository.RagRepository
 import com.example.offlinegpt.util.tts.TextToSpeechManager
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,9 +37,11 @@ import javax.inject.Inject
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val repository: ChatRepository,
+    private val ragRepository: RagRepository,
     private val auth: FirebaseAuth,
     private val locationProvider: LocationProvider,
     private val ttsManager: TextToSpeechManager,
+    private val embeddingEngine: EmbeddingEngine,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -308,6 +312,30 @@ class ChatViewModel @Inject constructor(
     fun ingestPdf(uri: Uri) {
         viewModelScope.launch {
             _isIngesting.value = true
+            try {
+                val embeddingModelFile = File(
+                    context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                    "all-MiniLM-L6-v2-quant.tflite"
+                )
+
+                if (!embeddingEngine.isInitialized()) {
+                    if (embeddingModelFile.exists()) {
+                        embeddingEngine.initialize(embeddingModelFile.absolutePath)
+                    } else {
+                        _currentStreamingText.value = "Error: Embedding model not found. Please download it."
+                        return@launch
+                    }
+                }
+
+                ragRepository.ingestPdf(uri) { text ->
+                    embeddingEngine.embed(text)
+                }
+
+                _currentStreamingText.value = "PDF ingested successfully."
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "PDF ingestion failed", e)
+                _currentStreamingText.value = "Error: ${e.localizedMessage}"
+            }
         }
     }
 
