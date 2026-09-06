@@ -22,14 +22,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -47,6 +40,9 @@ class ChatViewModel @Inject constructor(
     private val ttsManager: TextToSpeechManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private val _searchResults = MutableStateFlow<List<String>>(emptyList())
+    val searchResults: StateFlow<List<String>> = _searchResults
 
     val liteRTLMEngine = LiteRTLMEngine()
     private val userEmail: String
@@ -68,7 +64,6 @@ class ChatViewModel @Inject constructor(
     val aiLocationInfo: StateFlow<String?> = _aiLocationInfo.asStateFlow()
 
     fun downloadModelFile(): Long? {
-
         val fileName = "all-MiniLM-L6-v2-quant.tflite"
         val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
 
@@ -89,10 +84,9 @@ class ChatViewModel @Inject constructor(
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         return manager.enqueue(request)
-
     }
+
     fun downloadGemma4Model(): Long? {
-        // 1. Verify Wi-Fi availability before initiating download
         if (!isWifiConnected()) {
             _currentStreamingText.value = "Error: Wi-Fi is required for model download."
             return null
@@ -134,7 +128,6 @@ class ChatViewModel @Inject constructor(
         return modelFile.exists()
     }
 
-    // create function to check if file gemma model exist
     fun checkIfGemmaModelExist(): Boolean {
         val modelFile = File(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
@@ -142,26 +135,44 @@ class ChatViewModel @Inject constructor(
         )
         return modelFile.exists()
     }
-
     
     fun selectSession(sessionId: Long) {
-
-        // check if file exist
-
         val modelFile = File(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
             "gemma-4-E2B-it.litertlm"
         )
 
+        if (sessionId == -1L) {
+            createNewRagSession()
+            return
+        }
+
         _currentSessionId.value = sessionId
         viewModelScope.launch {
-            if (modelFile.exists()) {
-                // Pass to your LiteRTLMEngine instance
+            if (modelFile.exists() && !liteRTLMEngine.isInitialized()) {
                 liteRTLMEngine.initialize(modelFile.absolutePath)
             }
             repository.getMessagesForSession(sessionId).collect {
                 _messages.value = it
             }
+        }
+    }
+
+
+
+    fun removeRAGSession() {
+        viewModelScope.launch {
+            repository.findSession(userEmail, "RAG")?.let { existingSessionId ->
+                repository.deleteSession(existingSessionId)
+            }
+        }
+    }
+
+    fun createNewRagSession() {
+        removeRAGSession()
+        viewModelScope.launch {
+            val id = repository.createSession(userEmail, "RAG")
+            selectSession(id)
         }
     }
 
@@ -172,9 +183,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    // getCurrentResponse
     suspend fun getCurrentResponse(prompt: String): String {
-        // Ensure engine is initialized
         if (!liteRTLMEngine.isInitialized()) {
             val modelFile = File(
                 context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
@@ -211,15 +220,24 @@ class ChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                // 1. Save user message (DB write)
+                if (!liteRTLMEngine.isInitialized()) {
+                    val modelFile = File(
+                        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                        "gemma-4-E2B-it.litertlm"
+                    )
+                    if (modelFile.exists()) {
+                        liteRTLMEngine.initialize(modelFile.absolutePath)
+                    } else {
+                        _currentStreamingText.value = "Error: Model file not found. Please download the Gemma model."
+                        return@launch
+                    }
+                }
+
                 repository.sendMessage(sessionId, content, isUser = true)
 
                 val responseBuilder = StringBuilder()
                 _currentStreamingText.value = ""
 
-                // 2. Stream AI response from LiteRT
-                // We move the collection to Dispatchers.Default to ensure the native 
-                // 'callback_thread_pool' is not hindered by UI thread contention.
                 withContext(Dispatchers.Default) {
                     liteRTLMEngine.sendMessageStream(content)
                         .catch { error ->
@@ -228,12 +246,10 @@ class ChatViewModel @Inject constructor(
                         .collect { chunk ->
                             val text = chunk.toString()
                             responseBuilder.append(text)
-                            // Update UI on Main thread
                             _currentStreamingText.value = responseBuilder.toString()
                         }
                 }
 
-                // 3. Save the full AI response to database
                 val finalResponse = responseBuilder.toString()
                 if (finalResponse.isNotEmpty()) {
                     repository.sendMessage(sessionId, finalResponse, isUser = false)
@@ -277,8 +293,11 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun ingestPdf(uri: Uri) {
+        // RAG functionality disabled due to missing repository
+    }
+
     override fun onCleared() {
-        super.onCleared()
         ttsManager.shutdown()
     }
 }

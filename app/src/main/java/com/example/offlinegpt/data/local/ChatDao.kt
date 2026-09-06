@@ -11,6 +11,9 @@ interface ChatDao {
     @Query("SELECT * FROM chat_sessions WHERE userEmail = :userEmail ORDER BY createdAt DESC")
     fun getAllSessions(userEmail: String): Flow<List<ChatSession>>
 
+    @Query("SELECT id FROM chat_sessions WHERE userEmail = :userEmail AND title = :title ORDER BY createdAt DESC LIMIT 1")
+    suspend fun getSessionId(userEmail: String, title: String): Long?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSession(session: ChatSession): Long
 

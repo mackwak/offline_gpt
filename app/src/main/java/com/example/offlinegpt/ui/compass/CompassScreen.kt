@@ -38,13 +38,14 @@ fun CompassScreen(
     val aiLocationInfo by chatViewModel.aiLocationInfo.collectAsState()
     var normalizedAzimuth2 = remember { mutableStateOf(0f) }
     val directionShort = remember { mutableStateOf("N") }
-    val animatedAzimuth by animateFloatAsState(targetValue = azimuth, label = "Compass Rotation")
+    val animatedAzimuth by animateFloatAsState(targetValue = -azimuth, label = "Compass Rotation")
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Compass", color = Color.White) },
                 navigationIcon = {
+                    /*
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack, 
@@ -52,12 +53,20 @@ fun CompassScreen(
                             tint = Color.White
                         )
                     }
+                    */
                 },
                 actions = {
-                    IconButton(onClick = { chatViewModel.askWhereAmI(  "" + normalizedAzimuth2.value + " " + directionShort.value + ". tell me if i can see the SUN now. Where is SUN now from the view of mine?") }) {
-                        Text("Info")
+
+                    if (chatViewModel.checkIfGemmaModelExist()) {
+                        TextButton(onClick = { chatViewModel.askWhereAmI(  "" + normalizedAzimuth2.value + " " + directionShort.value + " in L29 APT balcony with 180 view only. Just give me the gist. Where is the sun relative to where I’m standing, whether visible or not?") }) {
+                            Text("Where am I?", color = Color.White)
+                        }
+                    } else {
+                        TextButton(onClick = { chatViewModel.downloadGemma4Model() }) {
+                            Text("Download Offline AI Model", color = Color.White)
+                        }
                     }
-                },
+               },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFF121212),
                     titleContentColor = Color.White
@@ -82,7 +91,7 @@ fun CompassScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp)
-                            .heightIn(max = 150.dp),
+                            .heightIn(max = 250.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = Color.White.copy(alpha = 0.1f)
                         ),

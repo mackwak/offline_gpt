@@ -27,6 +27,10 @@ class ChatRepository @Inject constructor(
         )
     }
 
+    suspend fun findSession(userEmail: String, title: String): Long? {
+        return chatDao.getSessionId(userEmail, title)
+    }
+
     suspend fun deleteSession(sessionId: Long) {
         chatDao.deleteSession(sessionId)
     }

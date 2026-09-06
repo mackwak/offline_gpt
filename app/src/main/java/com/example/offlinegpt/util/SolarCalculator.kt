@@ -74,14 +74,14 @@ object SolarCalculator {
         val zenith = acos(max(-1.0, min(1.0, csz)))
         val azDenom = cos(phi) * sin(zenith)
         
-        var azimuth = if (abs(azDenom) > 0.001) {
+        val az = if (abs(azDenom) > 0.001) {
             val cosAz = (sin(delta) - sin(phi) * cos(zenith)) / azDenom
             Math.toDegrees(acos(max(-1.0, min(1.0, cosAz))))
         } else {
             if (lat > 0) 180.0 else 0.0
         }
         
-        if (ha > 0) azimuth = (360 - azimuth) % 360 else azimuth = (azimuth + 180) % 360
+        val azimuth = if (ha > 0) (360 - az) % 360 else az % 360
 
         return SunPosition(azimuth, 90.0 - Math.toDegrees(zenith))
     }

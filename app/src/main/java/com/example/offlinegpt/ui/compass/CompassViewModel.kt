@@ -3,6 +3,7 @@ package com.example.offlinegpt.ui.compass
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.offlinegpt.data.sensor.CompassSensorManager
+import com.example.offlinegpt.data.location.LocationProvider
 import com.example.offlinegpt.util.SolarCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -11,7 +12,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CompassViewModel @Inject constructor(
-    compassSensorManager: CompassSensorManager
+    compassSensorManager: CompassSensorManager,
+    private val locationProvider: LocationProvider
 ) : ViewModel() {
 
     val azimuth: StateFlow<Float> = compassSensorManager.getAzimuthFlow()
@@ -22,13 +24,17 @@ class CompassViewModel @Inject constructor(
         )
 
     // Sun azimuth relative to North (0-360)
-    // Defaulting to a central location (e.g., San Francisco) if GPS is not used
+    // Defaulting to a central location if GPS is not used
     private val defaultLat = 37.7749
     private val defaultLon = -122.4194
 
     val sunAzimuth: StateFlow<Float> = flow {
         while (true) {
-            val position = SolarCalculator.calculateSunPosition(defaultLat, defaultLon)
+            val location = locationProvider.getCurrentLocation()
+            val lat = location?.latitude ?: defaultLat
+            val lon = location?.longitude ?: defaultLon
+            
+            val position = SolarCalculator.calculateSunPosition(lat, lon)
             emit(position.azimuth.toFloat())
             delay(60000) // Update sun position every minute
         }

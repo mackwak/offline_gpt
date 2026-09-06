@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
                         HomeScreen(
                             onLogout = { authViewModel.onLogoutClick() },
                             onNavigateToChats = { navController.navigate("chat_list") },
+                            onNavigateToRag = { navController.navigate("chat_rag") },
                             onNavigateToCalculator = { navController.navigate("calculator") },
                             onNavigateToCompass = { navController.navigate("compass") }
                         )
@@ -109,6 +110,14 @@ class MainActivity : ComponentActivity() {
                         ChatDetailScreen(
                             viewModel = chatViewModel,
                             sessionId = sessionId,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("chat_rag") {
+                        val chatViewModel: ChatViewModel = hiltViewModel()
+                        ChatDetailScreen(
+                            viewModel = chatViewModel,
+                            sessionId = -1,
                             onBack = { navController.popBackStack() }
                         )
                     }
@@ -133,6 +142,7 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(
     onLogout: () -> Unit,
     onNavigateToChats: () -> Unit,
+    onNavigateToRag: () -> Unit,
     onNavigateToCalculator: () -> Unit,
     onNavigateToCompass: () -> Unit
 ) {
@@ -147,7 +157,7 @@ fun HomeScreen(
 
         if (chatViewModel.checkIfGemmaModelExist()) {
             Button(onClick = onNavigateToChats) {
-                Text("My Embedding Chats")
+                Text("GPT Chats")
             }
         } else {
             Button(onClick = { chatViewModel.downloadGemma4Model() }) {
@@ -155,7 +165,11 @@ fun HomeScreen(
             }
         }
 
-        if (!chatViewModel.checkIfEmbeddingFileExist()) {
+        if (chatViewModel.checkIfEmbeddingFileExist()) {
+            Button(onClick = onNavigateToRag) {
+                Text("RAG Chats")
+            }
+        } else {
             Button(onClick = { chatViewModel.downloadModelFile() }) {
                 Text("Download Embedding Model")
             }
