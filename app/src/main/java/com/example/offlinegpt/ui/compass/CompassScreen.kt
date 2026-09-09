@@ -43,7 +43,7 @@ fun CompassScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Compass", color = Color.White) },
+                title = { Text("AI Compass Assistant", color = Color.White) },
                 navigationIcon = {
                     /*
                     IconButton(onClick = onBack) {

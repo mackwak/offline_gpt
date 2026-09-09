@@ -61,6 +61,15 @@ android {
     buildFeatures {
         compose = true
     }
+
+    configurations.all {
+        resolutionStrategy {
+            force("com.google.ai.edge.litert:litert-support:1.4.2")
+            force("com.google.ai.edge.litert:litert-support-api:1.4.2")
+            force("com.google.ai.edge.litert:litert-api:1.4.2")
+            force("com.google.ai.edge.litert:litert:1.4.2")
+        }
+    }
 }
 
 dependencies {
@@ -73,10 +82,21 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation("com.google.ai.edge.litertlm:litertlm-android:0.16.0")
+
+    // LiteRT
+    implementation(libs.litertlm.android)
+    implementation(libs.tensorflow.lite.metadata)
+    implementation(libs.tensorflow.lite.support) {
+        exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
+        exclude(group = "com.google.ai.edge.litert", module = "litert-api")
+        exclude(group = "org.tensorflow", module = "tensorflow-lite-api")
+        exclude(group = "org.tensorflow", module = "tensorflow-lite-support-api")
+    }
+
     // Coroutines & Lifecycle
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
+
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -93,19 +113,27 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.config)
 
-    androidTestImplementation(
-        "androidx.compose.ui:ui-test-junit4"
-    )
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 
-    debugImplementation(
-        "androidx.compose.ui:ui-test-manifest"
-    )
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    debugImplementation(libs.androidx.compose.ui.tooling)
 
     // Navigation
     implementation(libs.androidx.navigation.compose)
 
     // MediaPipe for Embeddings
-    implementation("org.tensorflow:tensorflow-lite-metadata:0.4.4")
+    implementation(libs.mediapipe.tasks.text) {
+        exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
+        exclude(group = "com.google.ai.edge.litert", module = "litert-api")
+        exclude(group = "org.tensorflow", module = "tensorflow-lite-api")
+        exclude(group = "org.tensorflow", module = "tensorflow-lite-support-api")
+    }
+    implementation(libs.mediapipe.tasks.core) {
+        exclude(group = "com.google.ai.edge.litert", module = "litert-support-api")
+        exclude(group = "com.google.ai.edge.litert", module = "litert-api")
+        exclude(group = "org.tensorflow", module = "tensorflow-lite-api")
+        exclude(group = "org.tensorflow", module = "tensorflow-lite-support-api")
+    }
 
     // Room
     implementation(libs.room.runtime)
@@ -113,12 +141,6 @@ dependencies {
     ksp(libs.room.compiler)
 
     testImplementation(libs.junit)
-    androidTestImplementation(libs.hilt.android.testing)
-    kspAndroidTest(libs.hilt.compiler)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
-    debugImplementation(libs.androidx.compose.ui.tooling)
 }
