@@ -39,6 +39,7 @@ fun CompassScreen(
     var normalizedAzimuth2 = remember { mutableStateOf(0f) }
     val directionShort = remember { mutableStateOf("N") }
     val animatedAzimuth by animateFloatAsState(targetValue = -azimuth, label = "Compass Rotation")
+    val errorMessage = chatViewModel.currentStreamingText.collectAsState(null)
 
     Scaffold(
         topBar = {
@@ -63,7 +64,7 @@ fun CompassScreen(
                         }
                     } else {
                         TextButton(onClick = { chatViewModel.downloadGemma4Model() }) {
-                            Text("Download Offline AI Model", color = Color.White)
+                            Text("Download AI Model", color = Color.White)
                         }
                     }
                },
@@ -86,6 +87,11 @@ fun CompassScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+
+                errorMessage.value?.let {
+                    Text(it, color = Color.Red, modifier = Modifier.padding(16.dp))
+                }
+
                 aiLocationInfo?.let { info ->
                     Card(
                         modifier = Modifier

@@ -73,6 +73,13 @@ class ChatViewModel @Inject constructor(
     private val _isIngesting = MutableStateFlow(false)
     val isIngesting: StateFlow<Boolean> = _isIngesting.asStateFlow()
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    fun clearError() {
+        _errorMessage.value = null
+    }
+
     fun downloadModelFile(): Long? {
         val fileName = "all-MiniLM-L6-v2-quant.tflite"
         val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
@@ -93,12 +100,60 @@ class ChatViewModel @Inject constructor(
             .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        return manager.enqueue(request)
+        val downloadId = manager.enqueue(request)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _isDownloading.value = true
+            var downloading = true
+            while (downloading) {
+                val query = DownloadManager.Query().setFilterById(downloadId)
+                val cursor = manager.query(query)
+                if (cursor.moveToFirst()) {
+                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                    val bytesDownloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                    val bytesTotalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+
+                    val status = if (statusIndex != -1) cursor.getInt(statusIndex) else -1
+                    val bytesDownloaded = if (bytesDownloadedIndex != -1) cursor.getLong(bytesDownloadedIndex) else 0L
+                    val bytesTotal = if (bytesTotalIndex != -1) cursor.getLong(bytesTotalIndex) else 0L
+
+                    if (bytesTotal > 0) {
+                        _downloadProgress.value = bytesDownloaded.toFloat() / bytesTotal.toFloat()
+                    }
+
+                    when (status) {
+                        DownloadManager.STATUS_SUCCESSFUL -> {
+                            downloading = false
+                            _isDownloading.value = false
+                            _downloadProgress.value = 1.0f
+                        }
+                        DownloadManager.STATUS_FAILED -> {
+                            downloading = false
+                            _isDownloading.value = false
+                            _errorMessage.value = "Model download failed."
+                        }
+                    }
+                }
+                cursor.close()
+                if (downloading) delay(1000)
+            }
+        }
+        return downloadId
     }
+
+    private val _isDownloading = MutableStateFlow(false)
+    val isDownloading: StateFlow<Boolean> = _isDownloading.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow(0f)
+    val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
 
     fun downloadGemma4Model(): Long? {
         if (!isWifiConnected()) {
             _currentStreamingText.value = "Error: Wi-Fi is required for model download."
+            viewModelScope.launch {
+                delay(2000)
+                _currentStreamingText.value = null
+            }
             return null
         }
 
@@ -120,7 +175,45 @@ class ChatViewModel @Inject constructor(
             .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        return manager.enqueue(request)
+        val downloadId = manager.enqueue(request)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _isDownloading.value = true
+            var downloading = true
+            while (downloading) {
+                val query = DownloadManager.Query().setFilterById(downloadId)
+                val cursor = manager.query(query)
+                if (cursor.moveToFirst()) {
+                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                    val bytesDownloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                    val bytesTotalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+
+                    val status = if (statusIndex != -1) cursor.getInt(statusIndex) else -1
+                    val bytesDownloaded = if (bytesDownloadedIndex != -1) cursor.getLong(bytesDownloadedIndex) else 0L
+                    val bytesTotal = if (bytesTotalIndex != -1) cursor.getLong(bytesTotalIndex) else 0L
+
+                    if (bytesTotal > 0) {
+                        _downloadProgress.value = bytesDownloaded.toFloat() / bytesTotal.toFloat()
+                    }
+
+                    when (status) {
+                        DownloadManager.STATUS_SUCCESSFUL -> {
+                            downloading = false
+                            _isDownloading.value = false
+                            _downloadProgress.value = 1.0f
+                        }
+                        DownloadManager.STATUS_FAILED -> {
+                            downloading = false
+                            _isDownloading.value = false
+                            _errorMessage.value = "Model download failed."
+                        }
+                    }
+                }
+                cursor.close()
+                if (downloading) delay(1000)
+            }
+        }
+        return downloadId
     }
 
     private fun isWifiConnected(): Boolean {
@@ -160,8 +253,12 @@ class ChatViewModel @Inject constructor(
 
         _currentSessionId.value = sessionId
         viewModelScope.launch {
-            if (modelFile.exists() && !liteRTLMEngine.isInitialized()) {
-                liteRTLMEngine.initialize(modelFile.absolutePath)
+            try {
+                if (modelFile.exists() && !liteRTLMEngine.isInitialized()) {
+                    liteRTLMEngine.initialize(modelFile.absolutePath)
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
             }
 
             // Get session info - use first() to ensure we get data even if 'sessions' value is currently empty
@@ -206,7 +303,12 @@ class ChatViewModel @Inject constructor(
                 "gemma-4-E2B-it.litertlm"
             )
             if (modelFile.exists()) {
-                liteRTLMEngine.initialize(modelFile.absolutePath)
+                try {
+                    liteRTLMEngine.initialize(modelFile.absolutePath)
+                } catch (e: Exception) {
+                    _errorMessage.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
+                    return "Error: ${e.localizedMessage}"
+                }
             } else {
                 return "Error: Gemma model not found. Please download it first."
             }
@@ -242,7 +344,12 @@ class ChatViewModel @Inject constructor(
                         "gemma-4-E2B-it.litertlm"
                     )
                     if (modelFile.exists()) {
-                        liteRTLMEngine.initialize(modelFile.absolutePath)
+                        try {
+                            liteRTLMEngine.initialize(modelFile.absolutePath)
+                        } catch (e: Exception) {
+                            _errorMessage.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
+                            return@launch
+                        }
                     } else {
                         _currentStreamingText.value = "Error: Model file not found. Please download the Gemma model."
                         return@launch
