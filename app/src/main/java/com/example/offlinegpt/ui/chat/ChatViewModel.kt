@@ -198,12 +198,12 @@ class ChatViewModel @Inject constructor(
                     if (bytesTotal > 0) {
                         _downloadProgress.value = bytesDownloaded.toFloat() / bytesTotal.toFloat()
                     }
-
+/*å
                     when (status) {
                         DownloadManager.STATUS_SUCCESSFUL -> {
                             downloading = false
-                            _isDownloading.value = false
-                            _downloadProgress.value = 1.0f
+                         //   _isDownloading.value = false
+                         //   _downloadProgress.value = 1.0f
                        //     buttonText.value = "Where am I"
                         }
                         DownloadManager.STATUS_FAILED -> {
@@ -213,6 +213,7 @@ class ChatViewModel @Inject constructor(
                             _errorMessage.value = "Model download failed."
                         }
                     }
+                    */
                 }
                 cursor.close()
                 if (downloading) delay(1000)

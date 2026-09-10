@@ -36,10 +36,15 @@ fun CompassScreen(
     val azimuth by viewModel.azimuth.collectAsState()
     val sunAzimuth by viewModel.sunAzimuth.collectAsState()
     val aiLocationInfo by chatViewModel.aiLocationInfo.collectAsState()
+    val isDownloading by chatViewModel.isDownloading.collectAsState()
+    val downloadProgress by chatViewModel.downloadProgress.collectAsState()
     var normalizedAzimuth2 = remember { mutableStateOf(0f) }
     val directionShort = remember { mutableStateOf("N") }
     val animatedAzimuth by animateFloatAsState(targetValue = -azimuth, label = "Compass Rotation")
     val errorMessage = chatViewModel.errorMessage.collectAsState(null)
+
+    // Remove unused downloadProgress collection if it was there
+    // val downloadProgress = chatViewModel.downloadProgress.collectAsState()
 
     Scaffold(
         topBar = {
@@ -62,9 +67,9 @@ fun CompassScreen(
                         TextButton(onClick = { chatViewModel.askWhereAmI(  "" + normalizedAzimuth2.value + " " + directionShort.value + " in L29 APT balcony with 180 view only. Just give me the gist. Where is the sun relative to where I’m standing, whether visible or not?") }) {
                             Text("Where am I?", color = Color.White)
                         }
-                    } else {
+                    } else if (!isDownloading) {
                         TextButton(onClick = { chatViewModel.downloadGemma4Model() }) {
-                            Text(chatViewModel.buttonText.value, color = Color.White)
+                            Text("Download Model", color = Color.White)
                         }
                     }
                },
@@ -87,6 +92,27 @@ fun CompassScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                if (isDownloading) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { downloadProgress },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color.Yellow,
+                            trackColor = Color.Gray.copy(alpha = 0.3f)
+                        )
+                        Text(
+                            text = "Downloading AI Model: ${(downloadProgress * 100).toInt()}%",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
 
                 errorMessage.value?.let {
                     Text(it, color = Color.Red, modifier = Modifier.padding(16.dp))
