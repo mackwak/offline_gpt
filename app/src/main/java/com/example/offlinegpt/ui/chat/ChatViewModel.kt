@@ -146,13 +146,14 @@ class ChatViewModel @Inject constructor(
 
     private val _downloadProgress = MutableStateFlow(0f)
     val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
+    val buttonText = mutableStateOf("Download AI Model")
 
     fun downloadGemma4Model(): Long? {
         if (!isWifiConnected()) {
-            _currentStreamingText.value = "Error: Wi-Fi is required for model download."
+            _errorMessage.value = "Error: Wi-Fi is required for model download. It will take few minutes."
             viewModelScope.launch {
                 delay(2000)
-                _currentStreamingText.value = null
+                _errorMessage.value = null
             }
             return null
         }
@@ -176,6 +177,8 @@ class ChatViewModel @Inject constructor(
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val downloadId = manager.enqueue(request)
+
+        buttonText.value = "Downloading..."
 
         viewModelScope.launch(Dispatchers.IO) {
             _isDownloading.value = true
@@ -201,10 +204,12 @@ class ChatViewModel @Inject constructor(
                             downloading = false
                             _isDownloading.value = false
                             _downloadProgress.value = 1.0f
+                       //     buttonText.value = "Where am I"
                         }
                         DownloadManager.STATUS_FAILED -> {
                             downloading = false
                             _isDownloading.value = false
+                      //      buttonText.value = "Download again"
                             _errorMessage.value = "Model download failed."
                         }
                     }
@@ -258,7 +263,7 @@ class ChatViewModel @Inject constructor(
                     liteRTLMEngine.initialize(modelFile.absolutePath)
                 }
             } catch (e: Exception) {
-                _errorMessage.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
+                buttonText.value = "Download model again"
             }
 
             // Get session info - use first() to ensure we get data even if 'sessions' value is currently empty
@@ -306,7 +311,7 @@ class ChatViewModel @Inject constructor(
                 try {
                     liteRTLMEngine.initialize(modelFile.absolutePath)
                 } catch (e: Exception) {
-                    _errorMessage.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
+                    _currentStreamingText.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
                     return "Error: ${e.localizedMessage}"
                 }
             } else {
