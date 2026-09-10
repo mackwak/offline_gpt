@@ -7,17 +7,17 @@ plugins {
 }
 
 android {
-    namespace = "com.example.offlinegpt"
+    namespace = "compass.assistant"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.offlinegpt"
+        applicationId = "compass.assistant"
         minSdk = 25
         targetSdk = 37
         versionCode = 6
         versionName = "1.0"
 
-        testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"
+        testInstrumentationRunner = "compass.assistant.HiltTestRunner"
     }
 
     flavorDimensions += "environment"
