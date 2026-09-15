@@ -37,7 +37,6 @@ platform :android do
        task: "bundle",
        build_type: "Release"
       )
-
       # 2. Upload to Google Play Closed Testing track
       upload_to_play_store(
         track: "alpha", # 'alpha' maps to Closed Testing in the Play API
