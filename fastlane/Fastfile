@@ -31,6 +31,24 @@ platform :android do
     sh("gcloud --project=offlinegpt-qa firebase test android run --type instrumentation --app /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/dev/debug/app-dev-debug.apk --test /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait --results-bucket=mactest2")
   end
 
+  desc "Build and upload to Google Play Closed Testing"
+  lane :closed_testing do
+     gradle(
+       task: "bundle",
+       build_type: "Release"
+      )
+
+      # 2. Upload to Google Play Closed Testing track
+      upload_to_play_store(
+        track: "alpha", # 'alpha' maps to Closed Testing in the Play API
+        aab: "/home/runner/work/offline_gpt/offline_gpt/app/build/outputs/bundle/prodRelease/app-prod-release.aab",
+        skip_upload_metadata: true,
+        skip_upload_images: true,
+        skip_upload_screenshots: true,
+        skip_upload_apk: true
+      )
+  end
+
   desc "Submit a new Dev Build to Firebase App Distribution"
   lane :distribute_dev do
     app_id = ENV["FIREBASE_APP_ID_DEV"]

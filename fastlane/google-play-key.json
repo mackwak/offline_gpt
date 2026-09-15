@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "offlinegpt-qa",
+  "private_key_id": "c30e10a0c28174db4c633661a44d6e60e90234e2",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDJa4EPgkRBZmiJ\nAaGWQZxUzVwX76mkjTzBg78WC3btEVcVcA77cshvEFQ6GQzDM3y0rFw3e2hf5aEC\nNfCMCkulBrI081lITxVRE8yVEJ8eCKEDHcDVIwafShUSQwENOMY4eCf6fWOqVSIJ\nAgaBBXl1NHxQ5SkZFu5RpNRQgBw1LTK16h5V0OJWtw0qM+ulHhi9YZfc1iqqSnsX\nVrsn/LC4rXK82bu1q5bL/QWbrKwCH022HByY04e0Xwfy2yjWPzvdin/c17IFXbVt\nDNVJMcu6tqS/tf1AiqVgC+6QslC+qLK45XjyfuNxUBPsDfv+4ZBhOfSdvXDPCBLh\nyTPlJV0jAgMBAAECggEAJmv87w3s4kLcPwJSJhz26tBPuHsts6eDhvCQQ27FbVyI\n7Zx2Jy4SoOkPABQmNJg+OiLE5oqCcwSVLZxHehc+rci0ttgS2HHJgbFSrb7Bc5O2\nzybeUWoAieMyWMzyRujlGwGEsso3eFcMCobZ4cO/EwYDjtTf/Zq7tFRKcd62Qsg5\nR92ymEXwXsepcRMv/rJya91P25WmtGjY8t+zfD0oNwQLRL8uVlDjmibGprxKLHnQ\nmVffGtW2xbD/WzDEo692yJA6G3W8X5EW6fpORJCkb4/rl0DYIGXqVkMNUsvfIhdb\n4IofUMDtMiLkTpanPrxf4fccHtwvO4Nedu4NrUCtPQKBgQDl9I/DdoYG4GNN5RQT\n8es9/WQfZuRsMxXDyGLv1/THW38x1uQjmRD9NO4/WN5F9++KUJiU23sBLuZehXz5\nhEzlevxb2wRhJmXUr/9yHq8mOynJMG3kDj60WShUGlmBt0YxCJsmyYca6jd1omXp\nEgVGq961qVst8sZbCfNciMmUDwKBgQDgO5LX06kU7Y6Vt1sP7GdjH7+iUaXOrsAM\nU5497TlN6lj5XUCXamIapiG1wX3kmyW3rh4V5pdebaPjkcEDUJfOjo+u5winMBc/\n98mh5DPZT/58AgdkUDlFe5+i++r9NNr3ZUf1cLS9qcCrHgeqoAlbSAwmT34OuxIe\nWPoAnePBrQKBgQCOl/OZ8mIz22rYv6eOoqIMI5e1fTlB+v+REy5+qbyI7qzV+/om\nNOF7Ehp2v6W9X3xzmXy0OdFxr2J81Gvl0etZFcVtNEfn8kaM98IAQxS7MU69CkHq\nfAbYEL1YQaqlLD/jYgHLsIYN45UWZeip+Vm6NBN7NJRszrG/fFEjXVMacwKBgFEB\ntJ77/E1vNN+pieBKy17oDVcaoAf24bKSUsyUcutPCi2sHrWU3TQ7aFo9OLnpwsqE\nwKGw2GZovZhtA4mrB+y7W/UXyex8Vyno3pL52jFb0NgD85+ty8LqUlWTJOWsvp45\nnLFyshkCxnQLOUHO5xJvCNSeSzAPLRCBnG+0mp9RAoGBANrIclMd5CpGLbuRPtBX\nP5/0d70AYZCj4126G5SDvcIid4KHROCQnZ0eAqrcGa/sTOTwKz5nk6yCFUujtONL\n8pIR+GpwcXxnRZzjykjNRXmE2X3kI7Jvg6rK1t4GdUEkm1Jbkpb6L4YmFAHRg9PB\nKx1/KzcQph9POByjcGJ/r5D0\n-----END PRIVATE KEY-----\n",
+  "client_email": "fastlane-deployer@offlinegpt-qa.iam.gserviceaccount.com",
+  "client_id": "116805542777874174334",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/fastlane-deployer%40offlinegpt-qa.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

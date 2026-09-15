@@ -31,6 +31,22 @@ Run unit tests
 
 Run UI tests (requires a connected device or emulator)
 
+### android ui_test_qa
+
+```sh
+[bundle exec] fastlane android ui_test_qa
+```
+
+Run UI tests (requires a connected device or emulator)
+
+### android closed_testing
+
+```sh
+[bundle exec] fastlane android closed_testing
+```
+
+Build and upload to Google Play Closed Testing
+
 ### android distribute_dev
 
 ```sh

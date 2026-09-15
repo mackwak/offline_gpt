@@ -1,2 +1,2 @@
-json_key_file("") # Path to the json auth file if needed for Google Play
-package_name("com.example.offlinegpt") # Default package name
+json_key_file("fastlane/google-play-key.json") # Path to the json auth file if needed for Google Play
+package_name("compass.assistant") # Default package name

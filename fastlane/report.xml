@@ -5,57 +5,17 @@
     
     
       
-      <testcase classname="fastlane.lanes" name="00: default_platform" time="0.000382">
+      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.000479">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="01: Switch to android test lane" time="0.000217">
+      <testcase classname="fastlane.lanes" name="1: bundleRelease" time="5.853388">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="02: testDevDebugUnitTest" time="3.728238">
-        
-      </testcase>
-    
-      
-      <testcase classname="fastlane.lanes" name="03: Switch to android ui_test lane" time="0.000345">
-        
-      </testcase>
-    
-      
-      <testcase classname="fastlane.lanes" name="04: assembleDevDebug assembleDevDebugAndroidTest" time="1.998898">
-        
-      </testcase>
-    
-      
-      <testcase classname="fastlane.lanes" name="05: gcloud firebase test android run --type instrumentation --app /Users/dongpilkwak/AndroidStudioProjects/OfflineGPT/app/build/outputs/apk/dev/debug/app-dev-debug.apk --test /Users/dongpilkwak/AndroidStudioProjects/OfflineGPT/app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait" time="190.955775">
-        
-      </testcase>
-    
-      
-      <testcase classname="fastlane.lanes" name="06: firebase_app_distribution_get_latest_release" time="1.558012">
-        
-      </testcase>
-    
-      
-      <testcase classname="fastlane.lanes" name="07: Switch to android increment_version lane" time="0.00029">
-        
-      </testcase>
-    
-      
-      <testcase classname="fastlane.lanes" name="08: android_set_version_code" time="0.007032">
-        
-      </testcase>
-    
-      
-      <testcase classname="fastlane.lanes" name="09: assembleDevRelease" time="83.277092">
-        
-      </testcase>
-    
-      
-      <testcase classname="fastlane.lanes" name="10: firebase_app_distribution" time="51.567338">
+      <testcase classname="fastlane.lanes" name="2: upload_to_play_store" time="241.000645">
         
       </testcase>
     
