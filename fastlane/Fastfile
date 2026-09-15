@@ -31,6 +31,7 @@ platform :android do
     sh("gcloud --project=offlinegpt-qa firebase test android run --type instrumentation --app /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/dev/debug/app-dev-debug.apk --test /home/runner/work/offline_gpt/offline_gpt/app/build/outputs/apk/androidTest/dev/debug/app-dev-debug-androidTest.apk --device model=oriole,version=33,locale=en,orientation=portrait --results-bucket=mactest2")
   end
 
+
   desc "Build and upload to Google Play Closed Testing"
   lane :closed_testing do
      gradle(
