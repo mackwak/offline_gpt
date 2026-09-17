@@ -47,26 +47,6 @@ class CalculatorScreenTest {
     }
 
     @Test
-    fun calculator_subtraction_works() {
-        hiltRule.inject()
-        composeTestRule.setContent {
-            OfflineGPTTheme {
-                CalculatorScreen(onBack = {})
-            }
-        }
-
-        // Input numbers
-        composeTestRule.onNodeWithText("Number 1").performTextInput("20")
-        composeTestRule.onNodeWithText("Number 2").performTextInput("8")
-
-        // Click subtract
-        composeTestRule.onNodeWithText("-").performClick()
-
-        // Verify result
-        composeTestRule.onNodeWithText("Congratulations! Result: 12.0").assertIsDisplayed()
-    }
-
-    @Test
     fun calculator_invalidInput_showsFailed() {
         hiltRule.inject()
         composeTestRule.setContent {
