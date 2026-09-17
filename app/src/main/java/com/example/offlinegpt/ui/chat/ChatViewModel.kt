@@ -76,18 +76,17 @@ class ChatViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private var activeDownloadId: Long? = null
+
     fun clearError() {
         _errorMessage.value = null
     }
 
     fun downloadModelFile(): Long? {
         val fileName = "all-MiniLM-L6-v2-quant.tflite"
-        val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
 
-        if (targetFile.exists() && targetFile.length() > 0) {
-            return null
-        }
-        val modelUrl = "https://huggingface.co/Nihal2000/all-MiniLM-L6-v2-quant.tflite/resolve/main/${fileName}"
+        val modelUrl =
+            "https://huggingface.co/Nihal2000/all-MiniLM-L6-v2-quant.tflite/resolve/main/${fileName}"
 
         Log.d("Model Download", "Model URL: $modelUrl")
 
@@ -101,6 +100,104 @@ class ChatViewModel @Inject constructor(
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val downloadId = manager.enqueue(request)
+        activeDownloadId = downloadId
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _isDownloading.value = true
+            var downloading = true
+            while (downloading) {
+                val query = DownloadManager.Query().setFilterById(downloadId)
+                val cursor = manager.query(query)
+                if (cursor.moveToFirst()) {
+                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                    val bytesDownloadedIndex =
+                        cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                    val bytesTotalIndex =
+                        cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+
+                    val status = if (statusIndex != -1) cursor.getInt(statusIndex) else -1
+                    val bytesDownloaded =
+                        if (bytesDownloadedIndex != -1) cursor.getLong(bytesDownloadedIndex) else 0L
+                    val bytesTotal =
+                        if (bytesTotalIndex != -1) cursor.getLong(bytesTotalIndex) else 0L
+
+                    if (bytesTotal > 0) {
+                        _downloadProgress.value = bytesDownloaded.toFloat() / bytesTotal.toFloat()
+                    }
+
+                    when (status) {
+                        DownloadManager.STATUS_SUCCESSFUL -> {
+                            downloading = false
+                            _isDownloading.value = false
+                            _downloadProgress.value = 1.0f
+                            validateModel()
+                        }
+
+                        DownloadManager.STATUS_FAILED -> {
+                            downloading = false
+                            _isDownloading.value = false
+                            _errorMessage.value = "Model download failed."
+                        }
+                    }
+                } else {
+                    downloading = false
+                    _isDownloading.value = false
+                }
+                cursor.close()
+                if (downloading) delay(1000)
+            }
+        }
+        return downloadId
+    }
+
+    private val _isDownloading = MutableStateFlow(false)
+    val isDownloading: StateFlow<Boolean> = _isDownloading.asStateFlow()
+
+    private val _isModelReady = MutableStateFlow(false)
+    val isModelReady: StateFlow<Boolean> = _isModelReady.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow(0f)
+    val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
+    val buttonText = mutableStateOf("Download AI Model")
+
+
+     fun stopDownloading() {
+         _isDownloading.value = false
+         _downloadProgress.value = 0f
+         activeDownloadId?.let { id ->
+             val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+             manager.remove(id)
+             activeDownloadId = null
+         }
+    }
+
+    fun downloadGemma4Model(): Long? {
+        if (!isWifiConnected()) {
+            _errorMessage.value = "Error: Wi-Fi is required for model download. It will take few minutes."
+            viewModelScope.launch {
+                delay(2000)
+                _errorMessage.value = null
+            }
+            return null
+        }
+
+        val fileName = "gemma-4-E2B-it.litertlm"
+
+        val modelUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/$fileName"
+
+        val request = DownloadManager.Request(Uri.parse(modelUrl))
+            .setTitle("Downloading Gemma Model")
+            .setDescription("Downloading on-device AI weights...")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
+            .setAllowedOverMetered(false)
+            .setAllowedOverRoaming(false)
+
+        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        val downloadId = manager.enqueue(request)
+        activeDownloadId = downloadId
+
+        buttonText.value = "Downloading..."
 
         viewModelScope.launch(Dispatchers.IO) {
             _isDownloading.value = true
@@ -126,94 +223,19 @@ class ChatViewModel @Inject constructor(
                             downloading = false
                             _isDownloading.value = false
                             _downloadProgress.value = 1.0f
+                            buttonText.value = "Where am I"
+                            validateModel()
                         }
+
                         DownloadManager.STATUS_FAILED -> {
                             downloading = false
                             _isDownloading.value = false
                             _errorMessage.value = "Model download failed."
                         }
                     }
-                }
-                cursor.close()
-                if (downloading) delay(1000)
-            }
-        }
-        return downloadId
-    }
-
-    private val _isDownloading = MutableStateFlow(false)
-    val isDownloading: StateFlow<Boolean> = _isDownloading.asStateFlow()
-
-    private val _downloadProgress = MutableStateFlow(0f)
-    val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
-    val buttonText = mutableStateOf("Download AI Model")
-
-    fun downloadGemma4Model(): Long? {
-        if (!isWifiConnected()) {
-            _errorMessage.value = "Error: Wi-Fi is required for model download. It will take few minutes."
-            viewModelScope.launch {
-                delay(2000)
-                _errorMessage.value = null
-            }
-            return null
-        }
-
-        val fileName = "gemma-4-E2B-it.litertlm"
-        val targetFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
-
-        if (targetFile.exists() && targetFile.length() > 0) {
-            return null
-        }
-
-        val modelUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/$fileName"
-
-        val request = DownloadManager.Request(Uri.parse(modelUrl))
-            .setTitle("Downloading Gemma Model")
-            .setDescription("Downloading on-device AI weights...")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-            .setAllowedOverMetered(false)
-            .setAllowedOverRoaming(false)
-
-        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val downloadId = manager.enqueue(request)
-
-        buttonText.value = "Downloading..."
-
-        viewModelScope.launch(Dispatchers.IO) {
-            _isDownloading.value = true
-            var downloading = true
-            while (downloading) {
-                val query = DownloadManager.Query().setFilterById(downloadId)
-                val cursor = manager.query(query)
-                if (cursor.moveToFirst()) {
-                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                    val bytesDownloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
-                    val bytesTotalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
-
-                    val status = if (statusIndex != -1) cursor.getInt(statusIndex) else -1
-                    val bytesDownloaded = if (bytesDownloadedIndex != -1) cursor.getLong(bytesDownloadedIndex) else 0L
-                    val bytesTotal = if (bytesTotalIndex != -1) cursor.getLong(bytesTotalIndex) else 0L
-
-                    if (bytesTotal > 0) {
-                        _downloadProgress.value = bytesDownloaded.toFloat() / bytesTotal.toFloat()
-                    }
-/*å
-                    when (status) {
-                        DownloadManager.STATUS_SUCCESSFUL -> {
-                            downloading = false
-                         //   _isDownloading.value = false
-                         //   _downloadProgress.value = 1.0f
-                       //     buttonText.value = "Where am I"
-                        }
-                        DownloadManager.STATUS_FAILED -> {
-                            downloading = false
-                            _isDownloading.value = false
-                      //      buttonText.value = "Download again"
-                            _errorMessage.value = "Model download failed."
-                        }
-                    }
-                    */
+                } else {
+                    downloading = false
+                    _isDownloading.value = false
                 }
                 cursor.close()
                 if (downloading) delay(1000)
@@ -234,7 +256,7 @@ class ChatViewModel @Inject constructor(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
             "all-MiniLM-L6-v2-quant.tflite"
         )
-        return modelFile.exists()
+        return modelFile.exists() && modelFile.length() > 0
     }
 
     fun checkIfGemmaModelExist(): Boolean {
@@ -242,7 +264,33 @@ class ChatViewModel @Inject constructor(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
             "gemma-4-E2B-it.litertlm"
         )
-        return modelFile.exists()
+        return modelFile.exists() && modelFile.length() > 0
+    }
+
+    /**
+     * Attempts to initialize the engine to verify if the model file is valid and hardware compatible.
+     */
+    fun validateModel() {
+        val modelFile = File(
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+            "gemma-4-E2B-it.litertlm"
+        )
+        if (!modelFile.exists() || modelFile.length() == 0L) {
+            _isModelReady.value = false
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                if (!liteRTLMEngine.isInitialized()) {
+                    liteRTLMEngine.initialize(modelFile.absolutePath)
+                }
+                _isModelReady.value = true
+            } catch (e: Exception) {
+                _isModelReady.value = false
+                _errorMessage.value = "Model validation failed: ${e.localizedMessage}"
+            }
+        }
     }
     
     fun selectSession(sessionId: Long) {
@@ -262,8 +310,12 @@ class ChatViewModel @Inject constructor(
             try {
                 if (modelFile.exists() && !liteRTLMEngine.isInitialized()) {
                     liteRTLMEngine.initialize(modelFile.absolutePath)
+                    _isModelReady.value = true
+                } else if (liteRTLMEngine.isInitialized()) {
+                    _isModelReady.value = true
                 }
             } catch (e: Exception) {
+                _isModelReady.value = false
                 buttonText.value = "Download model again"
             }
 

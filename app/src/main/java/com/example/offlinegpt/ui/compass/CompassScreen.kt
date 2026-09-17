@@ -42,7 +42,7 @@ fun CompassScreen(
     val directionShort = remember { mutableStateOf("N") }
     val animatedAzimuth by animateFloatAsState(targetValue = -azimuth, label = "Compass Rotation")
     val errorMessage = chatViewModel.errorMessage.collectAsState(null)
-
+    val modelReady = chatViewModel.isModelReady.collectAsState(false)
     // Remove unused downloadProgress collection if it was there
     // val downloadProgress = chatViewModel.downloadProgress.collectAsState()
 
@@ -63,13 +63,17 @@ fun CompassScreen(
                 },
                 actions = {
 
-                    if (chatViewModel.checkIfGemmaModelExist()) {
+                    if (modelReady.value) {
                         TextButton(onClick = { chatViewModel.askWhereAmI(  "" + normalizedAzimuth2.value + " " + directionShort.value + " in L29 APT balcony with 180 view only. Just give me the gist. Where is the sun relative to where I’m standing, whether visible or not?") }) {
                             Text("Where am I?", color = Color.White)
                         }
                     } else if (!isDownloading) {
                         TextButton(onClick = { chatViewModel.downloadGemma4Model() }) {
                             Text("Download Model", color = Color.White)
+                        }
+                    } else if (isDownloading) {
+                        TextButton(onClick = { chatViewModel.stopDownloading() }) {
+                            Text("Stop downloading", color = Color.White)
                         }
                     }
                },
@@ -94,7 +98,7 @@ fun CompassScreen(
             ) {
                 if (isDownloading) {
                     Column(
-                        modifier = Modifier
+                        modifier = Modifier.padding(bottom = 50.dp)
                             .fillMaxWidth()
                             .padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
