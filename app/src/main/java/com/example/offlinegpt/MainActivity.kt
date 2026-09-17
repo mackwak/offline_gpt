@@ -7,17 +7,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -28,6 +26,9 @@ import com.example.offlinegpt.ui.auth.SignupScreen
 import com.example.offlinegpt.ui.chat.ChatDetailScreen
 import com.example.offlinegpt.ui.chat.ChatListScreen
 import com.example.offlinegpt.ui.chat.ChatViewModel
+import com.example.offlinegpt.ui.mbti.MbtiScreen
+import com.example.offlinegpt.ui.mbti.MbtiHistoryScreen
+import com.example.offlinegpt.ui.mbti.MbtiViewModel
 import com.example.offlinegpt.ui.calculator.CalculatorScreen
 import com.example.offlinegpt.ui.compass.CompassScreen
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
@@ -59,7 +60,7 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(
                     navController = navController,
-                    startDestination = "compass",
+                    startDestination = "home",
                     modifier = Modifier.fillMaxSize()
                 ) {
                     composable("login") {
@@ -90,6 +91,8 @@ class MainActivity : ComponentActivity() {
                             onLogout = { authViewModel.onLogoutClick() },
                             onNavigateToChats = { navController.navigate("chat_list") },
                             onNavigateToRag = { navController.navigate("chat_rag") },
+                            onNavigateToMbti = { navController.navigate("mbti") },
+                            onNavigateToMbtiHistory = { navController.navigate("mbti_history") },
                             onNavigateToCalculator = { navController.navigate("calculator") },
                             onNavigateToCompass = { navController.navigate("compass") }
                         )
@@ -121,6 +124,21 @@ class MainActivity : ComponentActivity() {
                             onBack = { navController.popBackStack() }
                         )
                     }
+                    composable("mbti") {
+                        val mbtiViewModel: MbtiViewModel = hiltViewModel()
+                        MbtiScreen(
+                            viewModel = mbtiViewModel,
+                            onFinished = { navController.popBackStack() },
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("mbti_history") {
+                        val mbtiViewModel: MbtiViewModel = hiltViewModel()
+                        MbtiHistoryScreen(
+                            viewModel = mbtiViewModel,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
                     composable("calculator") {
                         CalculatorScreen(
                             onBack = { navController.popBackStack() }
@@ -143,6 +161,8 @@ fun HomeScreen(
     onLogout: () -> Unit,
     onNavigateToChats: () -> Unit,
     onNavigateToRag: () -> Unit,
+    onNavigateToMbti: () -> Unit,
+    onNavigateToMbtiHistory: () -> Unit,
     onNavigateToCalculator: () -> Unit,
     onNavigateToCompass: () -> Unit
 ) {
@@ -152,38 +172,56 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .systemBarsPadding()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Welcome to OfflineGPT!")
+        Text(text = "Welcome to OfflineGPT!", style = MaterialTheme.typography.headlineMedium)
 
         if (chatViewModel.checkIfGemmaModelExist()) {
-            Button(onClick = onNavigateToChats) {
+            Button(onClick = onNavigateToChats, modifier = Modifier.fillMaxWidth()) {
                 Text("GPT Chats")
             }
         } else {
-            Button(onClick = { chatViewModel.downloadGemma4Model() }) {
+            Button(onClick = { chatViewModel.downloadGemma4Model() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Download Gemma 4 Model")
             }
         }
 
         if (chatViewModel.checkIfEmbeddingFileExist()) {
-            Button(onClick = onNavigateToRag) {
+            Button(onClick = onNavigateToRag, modifier = Modifier.fillMaxWidth()) {
                 Text("RAG Chats")
             }
         } else {
-            Button(onClick = { chatViewModel.downloadModelFile() }) {
+            Button(onClick = { chatViewModel.downloadModelFile() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Download Embedding Model")
             }
         }
 
-        Button(onClick = onNavigateToCalculator) {
+        Button(onClick = onNavigateToCalculator, modifier = Modifier.fillMaxWidth()) {
             Text("Calculator")
         }
 
-        Button(onClick = onNavigateToCompass) {
+        Button(onClick = onNavigateToCompass, modifier = Modifier.fillMaxWidth()) {
             Text("Compass")
         }
 
-        Button(onClick = onLogout) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onNavigateToMbti, modifier = Modifier.weight(1f)) {
+                Text("MBTI 진단")
+            }
+            OutlinedButton(onClick = onNavigateToMbtiHistory, modifier = Modifier.weight(1f)) {
+                Text("진단 기록")
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+        ) {
             Text("Logout")
         }
     }

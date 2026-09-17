@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.example.offlinegpt.data.local.AppDatabase
 import com.example.offlinegpt.data.local.ChatDao
+import com.example.offlinegpt.data.local.MbtiDao
 import com.example.offlinegpt.data.local.RagDao
 import dagger.Module
 import dagger.Provides
@@ -34,5 +35,10 @@ object DatabaseModule {
     @Provides
     fun provideRagDao(database: AppDatabase): RagDao {
         return database.ragDao()
+    }
+
+    @Provides
+    fun provideMbtiDao(database: AppDatabase): MbtiDao {
+        return database.mbtiDao()
     }
 }
