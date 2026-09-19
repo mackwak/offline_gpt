@@ -70,7 +70,13 @@ fun ChatDetailScreen(
                 text = inputText,
                 onTextChange = { inputText = it },
                 onSend = {
-                    viewModel.sendMessage(inputText)
+
+                    if (currentSession?.title == "RAG") {
+                        viewModel.sendRagMessage(inputText)
+                    } else {
+                        viewModel.sendMessage(inputText)
+                    }
+
                     inputText = ""
                 },
                 isRag = currentSession?.title == "RAG",

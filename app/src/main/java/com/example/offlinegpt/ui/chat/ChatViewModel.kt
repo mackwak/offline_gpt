@@ -400,6 +400,79 @@ class ChatViewModel @Inject constructor(
         return responseBuilder.toString()
     }
 
+    fun sendRagMessage(content: String) {
+
+        val sessionId = currentSessionId.value ?: return
+        if (content.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                if (!liteRTLMEngine.isInitialized()) {
+                    val modelFile = File(
+                        context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                        "gemma-4-E2B-it.litertlm"
+                    )
+                    if (modelFile.exists()) {
+                        try {
+                            liteRTLMEngine.initialize(modelFile.absolutePath)
+                        } catch (e: Exception) {
+                            _errorMessage.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
+                            return@launch
+                        }
+                    } else {
+                        _currentStreamingText.value = "Error: Model file not found. Please download the Gemma model."
+                        return@launch
+                    }
+                }
+
+                // get embedding from content
+                repository.sendMessage(sessionId, content, isUser = true)
+
+                val responseBuilder = StringBuilder()
+                _currentStreamingText.value = ""
+
+                withContext(Dispatchers.Default) {
+                    val embedding = embeddingEngine.embed(content)
+                    val contextBuilder = StringBuilder()
+                    ragRepository.findRelevantPages(embedding).forEach { page ->
+                        contextBuilder.append("Context from Page ${page.pageNumber}: ${page.content}\n")
+                    }
+                    
+                    val contextText = contextBuilder.toString()
+                    val ragPrompt = if (contextText.isNotEmpty()) {
+                        "You are a helpful assistant. Use the following context to answer the user's question.\n\n" +
+                                "Context:\n$contextText\n\n" +
+                                "User Question: $content\n\n" +
+                                "Answer:"
+                    } else {
+                        content
+                    }
+
+                    liteRTLMEngine.sendMessageStream(ragPrompt)
+                        .catch { error ->
+                            _currentStreamingText.value = "Error: ${error.localizedMessage}"
+                        }
+                        .collect { chunk ->
+                            val text = chunk.toString()
+                            responseBuilder.append(text)
+                            _currentStreamingText.value = responseBuilder.toString()
+                        }
+                }
+
+                val finalResponse = responseBuilder.toString()
+                if (finalResponse.isNotEmpty()) {
+                    repository.sendMessage(sessionId, finalResponse, isUser = false)
+                }
+            } catch (e: Exception) {
+                _currentStreamingText.value = "Error: ${e.localizedMessage}"
+            } finally {
+                _currentStreamingText.value = null
+            }
+        }
+
+
+    }
+
     fun sendMessage(content: String) {
         val sessionId = currentSessionId.value ?: return
         if (content.isBlank()) return
