@@ -263,7 +263,7 @@ class ChatViewModel @Inject constructor(
     fun checkIfEmbeddingFileExist(): Boolean {
         val modelFile = File(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-            "universal-sentence-encoder.tflite"
+            "universal_sentence_encoder.tflite"
         )
 
         return modelFile.exists() && modelFile.length() > 0
@@ -490,7 +490,7 @@ class ChatViewModel @Inject constructor(
             try {
                 val embeddingModelFile = File(
                     context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-                    "universal-sentence-encoder.tflite"
+                    "universal_sentence_encoder.tflite"
                 )
 
                 if (!embeddingEngine.isInitialized()) {
