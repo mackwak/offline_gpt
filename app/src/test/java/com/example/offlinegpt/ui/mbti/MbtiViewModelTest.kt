@@ -1,12 +1,10 @@
 package com.example.offlinegpt.ui.mbti
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.offlinegpt.data.mbti.MBTIQuestion
 import com.example.offlinegpt.data.mbti.MbtiTrait
 import com.example.offlinegpt.data.repository.MbtiRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
-import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.*
@@ -14,11 +12,8 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
 import org.mockito.kotlin.*
 
-@HiltAndroidTest
-@RunWith(AndroidJUnit4::class)
 class MbtiViewModelTest {
 
     private lateinit var viewModel: MbtiViewModel
