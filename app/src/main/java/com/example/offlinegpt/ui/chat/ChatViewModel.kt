@@ -83,19 +83,18 @@ class ChatViewModel @Inject constructor(
     }
 
     fun downloadModelFile(): Long? {
-        val fileName = "all-MiniLM-L6-v2-quant.tflite"
-
-        val modelUrl =
-            "https://huggingface.co/Nihal2000/all-MiniLM-L6-v2-quant.tflite/resolve/main/${fileName}"
+        // 1. Corrected file name and model URL
+        val fileName = "universal_sentence_encoder.tflite"
+        val modelUrl = "https://storage.googleapis.com/mediapipe-models/text_embedder/universal_sentence_encoder/float32/1/universal_sentence_encoder.tflite"
 
         Log.d("Model Download", "Model URL: $modelUrl")
 
         val request = DownloadManager.Request(Uri.parse(modelUrl))
-            .setTitle("Downloading Gemma Embedding Model")
-            .setDescription("Downloading on-device AI Embedding weights...")
+            .setTitle("Downloading Text Embedder Model")
+            .setDescription("Downloading on-device AI embedding weights...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-            .setAllowedOverMetered(false)
+            .setAllowedOverMetered(true) // Set to true if cellular downloads are allowed
             .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -105,46 +104,56 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _isDownloading.value = true
             var downloading = true
+
             while (downloading) {
                 val query = DownloadManager.Query().setFilterById(downloadId)
-                val cursor = manager.query(query)
-                if (cursor.moveToFirst()) {
-                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                    val bytesDownloadedIndex =
-                        cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
-                    val bytesTotalIndex =
-                        cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
 
-                    val status = if (statusIndex != -1) cursor.getInt(statusIndex) else -1
-                    val bytesDownloaded =
-                        if (bytesDownloadedIndex != -1) cursor.getLong(bytesDownloadedIndex) else 0L
-                    val bytesTotal =
-                        if (bytesTotalIndex != -1) cursor.getLong(bytesTotalIndex) else 0L
+                // Safely query DownloadManager
+                manager.query(query)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+                        val bytesDownloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+                        val bytesTotalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+                        val reasonIndex = cursor.getColumnIndex(DownloadManager.COLUMN_REASON)
 
-                    if (bytesTotal > 0) {
-                        _downloadProgress.value = bytesDownloaded.toFloat() / bytesTotal.toFloat()
-                    }
+                        val status = if (statusIndex != -1) cursor.getInt(statusIndex) else -1
+                        val bytesDownloaded = if (bytesDownloadedIndex != -1) cursor.getLong(bytesDownloadedIndex) else 0L
+                        val bytesTotal = if (bytesTotalIndex != -1) cursor.getLong(bytesTotalIndex) else 0L
 
-                    when (status) {
-                        DownloadManager.STATUS_SUCCESSFUL -> {
-                            downloading = false
-                            _isDownloading.value = false
-                            _downloadProgress.value = 1.0f
-                            validateModel()
+                        if (bytesTotal > 0L) {
+                            _downloadProgress.value = bytesDownloaded.toFloat() / bytesTotal.toFloat()
                         }
 
-                        DownloadManager.STATUS_FAILED -> {
-                            downloading = false
-                            _isDownloading.value = false
-                            _errorMessage.value = "Model download failed."
+                        when (status) {
+                            DownloadManager.STATUS_SUCCESSFUL -> {
+                                downloading = false
+                                _isDownloading.value = false
+                                _downloadProgress.value = 1.0f
+                                validateModel()
+                            }
+
+                            DownloadManager.STATUS_FAILED -> {
+                                downloading = false
+                                _isDownloading.value = false
+                                val reason = if (reasonIndex != -1) cursor.getInt(reasonIndex) else -1
+                                _errorMessage.value = "Model download failed (Reason code: $reason)"
+                                Log.e("Model Download", "Failed with DownloadManager reason: $reason")
+                            }
                         }
+                    } else {
+                        // Download canceled or purged from manager
+                        downloading = false
+                        _isDownloading.value = false
+                        _errorMessage.value = "Download session was canceled or removed."
                     }
-                } else {
+                } ?: run {
                     downloading = false
                     _isDownloading.value = false
                 }
-                cursor.close()
-                if (downloading) delay(1000)
+
+                if (downloading) {
+                    delay(1000)
+                }
             }
         }
         return downloadId
@@ -254,8 +263,9 @@ class ChatViewModel @Inject constructor(
     fun checkIfEmbeddingFileExist(): Boolean {
         val modelFile = File(
             context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-            "all-MiniLM-L6-v2-quant.tflite"
+            "universal-sentence-encoder.tflite"
         )
+
         return modelFile.exists() && modelFile.length() > 0
     }
 
@@ -480,7 +490,7 @@ class ChatViewModel @Inject constructor(
             try {
                 val embeddingModelFile = File(
                     context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
-                    "all-MiniLM-L6-v2-quant.tflite"
+                    "universal-sentence-encoder.tflite"
                 )
 
                 if (!embeddingEngine.isInitialized()) {
