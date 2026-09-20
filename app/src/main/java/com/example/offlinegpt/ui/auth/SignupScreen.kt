@@ -70,6 +70,24 @@ fun SignupScreen(
                 Text("Sign Up")
             }
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = "For safer and faster logins next time,",
+            style = MaterialTheme.typography.bodySmall
+        )
+        
+        OutlinedButton(
+            onClick = { viewModel.registerPasskey(context) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !viewModel.isLoading
+        ) {
+            Text("Register Passkey")
+        }
+
         TextButton(onClick = onNavigateBack) {
             Text("Already have an account? Login")
         }

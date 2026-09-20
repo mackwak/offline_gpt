@@ -84,6 +84,10 @@ dependencies {
     implementation(libs.androidx.junit.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.pdfbox.android)
+    
+    // Credential Manager for Passkeys
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
 
     // LiteRT
     implementation(libs.litertlm.android)
