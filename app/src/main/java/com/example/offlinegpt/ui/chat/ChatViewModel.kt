@@ -53,6 +53,7 @@ class ChatViewModel @Inject constructor(
         get() = auth.currentUser?.email ?: "anonymous"
 
     val sessions: StateFlow<List<ChatSession>> = repository.getAllSessions(userEmail)
+        .map { list -> list.filter { it.title != "RAG" } }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -310,12 +311,13 @@ class ChatViewModel @Inject constructor(
             "gemma-4-E2B-it.litertlm"
         )
 
+        _currentSessionId.value = sessionId
         if (sessionId == -1L) {
             createNewRagSession()
             return
         }
 
-        _currentSessionId.value = sessionId
+
         viewModelScope.launch {
             try {
                 if (modelFile.exists() && !liteRTLMEngine.isInitialized()) {
@@ -336,6 +338,12 @@ class ChatViewModel @Inject constructor(
             repository.getMessagesForSession(sessionId).collect {
                 _messages.value = it
             }
+        }
+    }
+
+    fun printDocumentPages() {
+        viewModelScope.launch {
+            ragRepository.getAllPages()
         }
     }
 
@@ -435,9 +443,10 @@ class ChatViewModel @Inject constructor(
                     val embedding = embeddingEngine.embed(content)
                     val contextBuilder = StringBuilder()
                     ragRepository.findRelevantPages(embedding).forEach { page ->
-                        contextBuilder.append("Context from Page ${page.pageNumber}: ${page.content}\n")
+                        contextBuilder.append("${page}\n")
                     }
-                    
+                    Log.d("RagRepository", "contextBuilder: ${contextBuilder.toString()}")
+
                     val contextText = contextBuilder.toString()
                     val ragPrompt = if (contextText.isNotEmpty()) {
                         "You are a helpful assistant. Use the following context to answer the user's question.\n\n" +
@@ -559,6 +568,9 @@ class ChatViewModel @Inject constructor(
 
     fun ingestPdf(uri: Uri) {
         viewModelScope.launch {
+
+            ragRepository.removeAllPages()
+
             _isIngesting.value = true
             try {
                 val embeddingModelFile = File(
@@ -578,6 +590,9 @@ class ChatViewModel @Inject constructor(
                 ragRepository.ingestPdf(uri) { text ->
                     embeddingEngine.embed(text)
                 }
+
+
+                printDocumentPages()
 
                 _currentStreamingText.value = "PDF ingested successfully."
             } catch (e: Exception) {

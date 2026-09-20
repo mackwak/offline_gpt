@@ -14,6 +14,9 @@ interface RagDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPages(pages: List<DocumentPage>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPage(page: DocumentPage)
+
     @Query("SELECT * FROM documents ORDER BY createdAt DESC")
     fun getAllDocuments(): Flow<List<Document>>
 
@@ -23,6 +26,16 @@ interface RagDao {
     @Query("SELECT * FROM document_pages")
     suspend fun getAllPages(): List<DocumentPage>
 
+    @Query("DELETE FROM documents")
+    suspend fun deleteAllDocuments()
+
+    @Query("DELETE FROM document_pages")
+    suspend fun removeAllPages()
+    /*
     @Query("DELETE FROM documents WHERE id = :documentId")
     suspend fun deleteDocument(documentId: Long)
+
+    @Query("DELETE FROM document_pages WHERE documentId = :documentId")
+    suspend fun removeAllPages(documentId: Long): List<DocumentPage>
+    */
 }

@@ -34,4 +34,5 @@ class ChatRepository @Inject constructor(
     suspend fun deleteSession(sessionId: Long) {
         chatDao.deleteSession(sessionId)
     }
+
 }
