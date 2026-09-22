@@ -75,6 +75,14 @@ fun LoginScreen(
                 Text("Login")
             }
         }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { viewModel.onPasskeyLoginClick(context) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !viewModel.isLoading
+        ) {
+            Text("Login with Passkey")
+        }
         TextButton(onClick = onNavigateToSignup) {
             Text("Don't have an account? Sign up")
         }

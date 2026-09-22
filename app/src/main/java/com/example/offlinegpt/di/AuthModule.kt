@@ -1,5 +1,7 @@
 package com.example.offlinegpt.di
 
+import android.content.Context
+import androidx.credentials.CredentialManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
@@ -7,6 +9,7 @@ import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -14,13 +17,29 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AuthModule {
 
-    @Provides
-    @Singleton
-    fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
+    private fun isLocalFlavor(packageName: String): Boolean {
+        return packageName.endsWith(".dev") || packageName.endsWith(".qa")
+    }
 
     @Provides
     @Singleton
-    fun provideFirebaseFunctions(): FirebaseFunctions = FirebaseFunctions.getInstance()
+    fun provideFirebaseAuth(@ApplicationContext context: Context): FirebaseAuth {
+        val auth = FirebaseAuth.getInstance()
+        return auth
+    }
+
+    @Provides
+    @Singleton
+    fun provideFirebaseFunctions(@ApplicationContext context: Context): FirebaseFunctions {
+        val functions = FirebaseFunctions.getInstance("us-central1")
+        return functions
+    }
+
+
+    @Provides
+    @Singleton
+    fun provideCredentialManager(@ApplicationContext context: Context): CredentialManager =
+        CredentialManager.create(context)
 
     @Provides
     @Singleton

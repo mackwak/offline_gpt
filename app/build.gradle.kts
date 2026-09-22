@@ -95,6 +95,8 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.config)
     implementation("com.google.firebase:firebase-functions")
+    implementation("androidx.credentials:credentials:1.6.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
     androidTestImplementation(
         "androidx.compose.ui:ui-test-junit4"
     )
