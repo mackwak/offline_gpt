@@ -15,7 +15,11 @@ object AuthModule {
 
     @Provides
     @Singleton
-    fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
+    fun provideFirebaseAuth(): FirebaseAuth {
+        val auth = FirebaseAuth.getInstance()
+        auth.useEmulator("10.0.2.2", 9099)
+        return auth
+    }
 
     @Provides
     @Singleton
@@ -33,6 +37,8 @@ object AuthModule {
     @Provides
     @Singleton
     fun provideFirebaseFunctions(): com.google.firebase.functions.FirebaseFunctions {
-        return com.google.firebase.functions.FirebaseFunctions.getInstance()
+        val functions = com.google.firebase.functions.FirebaseFunctions.getInstance()
+        functions.useEmulator("10.0.2.2", 5001)
+        return functions
     }
 }
