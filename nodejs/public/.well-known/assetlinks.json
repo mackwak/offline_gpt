@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "compass.assistant",
+      "sha256_cert_fingerprints": [
+        "28:D2:E0:12:4D:02:52:0F:19:68:7C:C0:A4:55:0A:85:53:A0:C4:FE:48:62:51:45:F8:96:D5:27:51:34:4B:75"
+      ]
+    }
+  }
+]

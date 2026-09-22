@@ -26,7 +26,7 @@ const expectedOrigin = [
 ];
 
 // 1. Passkey Registration Request Options
-export const requestRegistration = onCall(async (request) => {
+export const requestRegistration = onCall({ invoker: "public", enforceAppCheck: false }, async (request) => {
     const { email } = request.data || {};
     if (!email) throw new HttpsError('invalid-argument', 'Email is required');
 
@@ -58,7 +58,7 @@ export const requestRegistration = onCall(async (request) => {
 });
 
 // 2. Passkey Registration Verification
-export const verifyRegistration = onCall(async (request) => {
+export const verifyRegistration = onCall({ invoker: "public", enforceAppCheck: false }, async (request) => {
     const { email, registrationResponse } = request.data || {};
     if (!email || !registrationResponse) {
         throw new HttpsError('invalid-argument', 'Email and registrationResponse are required');
@@ -111,7 +111,7 @@ export const verifyRegistration = onCall(async (request) => {
 });
 
 // 3. Passkey Authentication Request Options
-export const requestAuthentication = onCall(async (request) => {
+export const requestAuthentication = onCall({ invoker: "public", enforceAppCheck: false }, async (request) => {
     const { email } = request.data || {};
     if (!email) throw new HttpsError('invalid-argument', 'Email is required');
 
@@ -138,7 +138,7 @@ export const requestAuthentication = onCall(async (request) => {
 });
 
 // 4. Passkey Authentication Verification
-export const verifyAuthentication = onCall(async (request) => {
+export const verifyAuthentication = onCall({ invoker: "public", enforceAppCheck: false }, async (request) => {
     const { email, authResponse } = request.data || {};
     if (!email || !authResponse) {
         throw new HttpsError('invalid-argument', 'Email and authResponse are required');
@@ -209,14 +209,14 @@ export const verifyAuthentication = onCall(async (request) => {
 });
 
 // 5. Test Callable Function
-export const helloWorldOnCall = onCall((request) => {
+export const helloWorldOnCall = onCall({ invoker: "public", enforceAppCheck: false }, (request) => {
     logger.info("Hello onCall logs!", { structuredData: true });
     const text = "Hello from Firebase Callable Function!";
     return { response: text, message: text };
 });
 
 // 6. Test HTTP Endpoint
-export const helloWorld = onRequest({ invoker: "public" }, (request, response) => {
+export const helloWorld = onRequest({ invoker: "public", enforceAppCheck: false }, (request, response) => {
     logger.info("Hello logs!", { structuredData: true });
     response.send("Hello from Firebase!");
 });
