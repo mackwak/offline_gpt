@@ -39,6 +39,10 @@ class MainActivity : ComponentActivity() {
                 val authViewModel: AuthViewModel = hiltViewModel()
                 val startDestination = if (authViewModel.isLoggedIn) "home" else "login"
 
+                LaunchedEffect(Unit) {
+                    authViewModel.fetchHelloWorldOnLaunch()
+                }
+
                 NavHost(
                     navController = navController,
                     startDestination = startDestination,

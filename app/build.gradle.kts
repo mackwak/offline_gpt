@@ -94,7 +94,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.config)
-
+    implementation("com.google.firebase:firebase-functions")
     androidTestImplementation(
         "androidx.compose.ui:ui-test-junit4"
     )

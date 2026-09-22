@@ -1,11 +1,13 @@
 package com.example.offlinegpt.ui.auth
 
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -17,7 +19,8 @@ import javax.inject.Inject
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val auth: FirebaseAuth,
-    private val remoteConfig: FirebaseRemoteConfig
+    private val remoteConfig: FirebaseRemoteConfig,
+    private val functions: FirebaseFunctions
 ) : ViewModel() {
 
     val isLoggedIn: Boolean
@@ -74,6 +77,25 @@ class AuthViewModel @Inject constructor(
         auth.signOut()
         viewModelScope.launch {
             _events.emit(AuthEvent.Logout)
+        }
+    }
+
+    fun fetchHelloWorldOnLaunch() {
+        viewModelScope.launch {
+            try {
+                val result = functions.getHttpsCallable("helloWorldOnCall").call().await()
+                val payload = result.data as? Map<*, *>
+                val response = payload?.get("response") as? String
+                    ?: payload?.get("message") as? String
+                    ?: result.data?.toString().orEmpty()
+
+                Log.d("AuthViewModel", "helloWorldOnCall response: $response")
+                _events.emit(AuthEvent.Error("Callable response: $response"))
+            } catch (e: Exception) {
+                val message = e.localizedMessage ?: "Failed to call helloWorldOnCall"
+                Log.e("AuthViewModel", message, e)
+                _events.emit(AuthEvent.Error(message))
+            }
         }
     }
 
