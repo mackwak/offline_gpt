@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "@simplewebauthn/server": "^14.0.2",
+    "firebase-admin": "^14.4.0",
+    "firebase-functions": "^7.4.0",
+    "jose": "4.15.9"
+  },
+  "overrides": {
+    "jose": "4.15.9",
+    "jwks-rsa": "3.2.0",
+    "jwks-rsa>jose": "4.15.9"
+  }
+}
