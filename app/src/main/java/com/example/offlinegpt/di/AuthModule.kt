@@ -29,4 +29,10 @@ object AuthModule {
         remoteConfig.fetchAndActivate()
         return remoteConfig
     }
+
+    @Provides
+    @Singleton
+    fun provideFirebaseFunctions(): com.google.firebase.functions.FirebaseFunctions {
+        return com.google.firebase.functions.FirebaseFunctions.getInstance()
+    }
 }

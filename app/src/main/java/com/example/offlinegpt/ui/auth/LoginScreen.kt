@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
+
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel,
@@ -74,6 +77,26 @@ fun LoginScreen(
             } else {
                 Text("Login")
             }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { viewModel.onPasskeyLoginClick(context) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !viewModel.isLoading
+        ) {
+            Icon(
+                imageVector = Icons.Default.Fingerprint,
+                contentDescription = "Passkey Login",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Sign in with Passkey")
+        }
+        TextButton(
+            onClick = { viewModel.onPasskeyRegisterClick(context) },
+            enabled = !viewModel.isLoading
+        ) {
+            Text("Register Passkey")
         }
         TextButton(onClick = onNavigateToSignup) {
             Text("Don't have an account? Sign up")

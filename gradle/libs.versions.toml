@@ -46,6 +46,9 @@ hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-com
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-config = { group = "com.google.firebase", name = "firebase-config" }
+firebase-functions = { group = "com.google.firebase", name = "firebase-functions" }
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version = "1.6.0" }
+androidx-credentials-play-services = { group = "androidx.credentials", name = "credentials-play-services-auth", version = "1.6.0" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
