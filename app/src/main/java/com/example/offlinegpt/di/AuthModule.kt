@@ -1,6 +1,8 @@
 package com.example.offlinegpt.di
 
+import android.os.Build
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 import dagger.Module
@@ -13,11 +15,26 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AuthModule {
 
+    private fun getEmulatorHost(): String {
+        return if (isEmulator()) "10.0.2.2" else "127.0.0.1"
+    }
+
+    private fun isEmulator(): Boolean {
+        return Build.FINGERPRINT.startsWith("generic")
+                || Build.FINGERPRINT.startsWith("unknown")
+                || Build.MODEL.contains("google_sdk")
+                || Build.MODEL.contains("Emulator")
+                || Build.MODEL.contains("Android SDK built for x86")
+                || Build.MANUFACTURER.contains("Genymotion")
+                || (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic"))
+                || "google_sdk" == Build.PRODUCT
+    }
+
     @Provides
     @Singleton
     fun provideFirebaseAuth(): FirebaseAuth {
         val auth = FirebaseAuth.getInstance()
-        auth.useEmulator("10.0.2.2", 9099)
+        auth.useEmulator(getEmulatorHost(), 9099)
         return auth
     }
 
@@ -36,9 +53,9 @@ object AuthModule {
 
     @Provides
     @Singleton
-    fun provideFirebaseFunctions(): com.google.firebase.functions.FirebaseFunctions {
-        val functions = com.google.firebase.functions.FirebaseFunctions.getInstance()
-        functions.useEmulator("10.0.2.2", 5001)
+    fun provideFirebaseFunctions(): FirebaseFunctions {
+        val functions = FirebaseFunctions.getInstance("us-central1")
+        functions.useEmulator(getEmulatorHost(), 5001)
         return functions
     }
 }

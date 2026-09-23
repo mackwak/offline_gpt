@@ -90,47 +90,21 @@ class AuthViewModel @Inject constructor(
 
     fun onPasskeyLoginClick(context: Context) {
         viewModelScope.launch {
-            if (email.isBlank()) {
-                _events.emit(AuthEvent.Error("Please enter your email to sign in with Passkey"))
-                return@launch
-            }
             isLoading = true
             try {
                 val requestResult = functions
-                    .getHttpsCallable("requestAuthentication")
-                    .call(mapOf("email" to email))
+                    .getHttpsCallable("requestRegistration")
+                    .call(mapOf("email" to "dpk94icu@gmail.com"))
                     .await()
 
-                val optionsMap = requestResult.data as? Map<*, *>
-                val optionsJson = if (optionsMap != null) JSONObject(optionsMap).toString() else requestResult.data.toString()
+                val dataMap = requestResult.data as? Map<*, *>
+                val message = dataMap?.get("message") as? String
+                    ?: dataMap?.get("response") as? String
+                    ?: requestResult.data.toString()
 
-                val credentialManager = CredentialManager.create(context)
-                val getPublicKeyCredentialOption = GetPublicKeyCredentialOption(optionsJson)
-                val getCredentialRequest = GetCredentialRequest(listOf(getPublicKeyCredentialOption))
-
-                val result = credentialManager.getCredential(context, getCredentialRequest)
-                val credential = result.credential
-
-                if (credential is CustomCredential && credential.type == PublicKeyCredential.TYPE_PUBLIC_KEY_CREDENTIAL) {
-                    val responseJson = credential.data.getString("androidx.credentials.BUNDLE_KEY_SUBTYPE_GET_PUBLIC_KEY_CREDENTIAL_RESPONSE_JSON")
-                        ?: throw Exception("Passkey response missing")
-
-                    val verifyResult = functions
-                        .getHttpsCallable("verifyAuthentication")
-                        .call(mapOf("email" to email, "authResponse" to responseJson))
-                        .await()
-
-                    val dataMap = verifyResult.data as? Map<*, *>
-                    val customToken = dataMap?.get("token") as? String
-                        ?: throw Exception("Custom token not received")
-
-                    auth.signInWithCustomToken(customToken).await()
-                    _events.emit(AuthEvent.Success)
-                } else {
-                    _events.emit(AuthEvent.Error("Invalid credential type"))
-                }
+                _events.emit(AuthEvent.Error(message))
             } catch (e: Exception) {
-                _events.emit(AuthEvent.Error(e.localizedMessage ?: "Passkey login failed"))
+                _events.emit(AuthEvent.Error(e.localizedMessage ?: "requestRegistration failed"))
             } finally {
                 isLoading = false
             }
