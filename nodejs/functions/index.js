@@ -15,14 +15,70 @@ const db = getFirestore();
 const auth = getAuth();
 
 const rpName = 'OfflineGPT App';
-const rpID = 'offlinegpt.example.com';
+const rpID = 'helloworld-6tfetltbzq-uc.a.run.app';
+const assetLinks = [
+    {
+        relation: [
+            'delegate_permission/common.handle_all_urls',
+            'delegate_permission/common.get_login_creds',
+        ],
+        target: {
+            namespace: 'android_app',
+            package_name: 'compass.assistant.dev',
+            sha256_cert_fingerprints: [
+                '28:D2:E0:12:4D:02:52:0F:19:68:7C:C0:A4:55:0A:85:53:A0:C4:FE:48:62:51:45:F8:96:D5:27:51:34:4B:75',
+                '80:AF:06:F0:26:E9:14:B6:D1:BD:27:DE:D8:EB:CA:93:2B:DD:F5:07:20:3F:97:2E:46:84:48:89:71:80:A2:58',
+            ],
+        },
+    },
+];
+
+function toVerificationHttpsError(error, operation) {
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const message = rawMessage.toLowerCase();
+
+    logger.error(`${operation} verification error`, { rawMessage, rpID });
+
+    if (message.includes('origin')) {
+        return new HttpsError(
+            'failed-precondition',
+            'Passkey origin mismatch. Check assetlinks.json, app package name, signing certificate, and that the installed app matches the deployed rpID domain.',
+            { rawMessage, rpID }
+        );
+    }
+
+    if (message.includes('rp id') || message.includes('rpid')) {
+        return new HttpsError(
+            'failed-precondition',
+            'Passkey RP ID mismatch. Ensure the app is linked to the deployed rpID domain and try again after reinstalling the app.',
+            { rawMessage, rpID }
+        );
+    }
+
+    if (message.includes('challenge')) {
+        return new HttpsError(
+            'failed-precondition',
+            'Passkey challenge expired or did not match. Start the passkey flow again.',
+            { rawMessage }
+        );
+    }
+
+    if (message.includes('counter')) {
+        return new HttpsError(
+            'failed-precondition',
+            'Passkey counter validation failed. This credential may be stale or duplicated.',
+            { rawMessage }
+        );
+    }
+
+    return new HttpsError('internal', rawMessage, { rawMessage, rpID });
+}
 
 // Supported client origins
 const expectedOrigin = [
-    'android:apk-key-hash:KNLgEk0CUgeZaHzApFUKhVOgxP5IYlFF-JbVJ1E0S3U', // Base64URL SHA-256 fingerprint
-    'https://offlinegpt.example.com',                                  // Production domain
-    'http://localhost:5001',                                           // Local Firebase Emulator
-    'http://10.0.2.2:5001'                                            // Android Emulator loopback
+    'android:apk-key-hash:KNLgEk0CUg8ZaHzApFUKhVOgxP5IYlFF-JbVJ1E0S3U', // dev/qa/prod debug signing cert
+    'android:apk-key-hash:gK8G8CbpFLbRvSfe2OvKkyvd9QcgP5cuRoRIiXGAolg', // release signing cert
+    'https://helloworld-6tfetltbzq-uc.a.run.app'
 ];
 
 // 1. Passkey Registration Request Options
@@ -82,8 +138,7 @@ export const verifyRegistration = onCall({ invoker: "public", enforceAppCheck: f
             expectedRPID: rpID,
         });
     } catch (error) {
-        logger.error('Registration Verification Error:', error);
-        throw new HttpsError('internal', error.message);
+        throw toVerificationHttpsError(error, 'Registration');
     }
 
     const { verified, registrationInfo } = verification;
@@ -171,8 +226,7 @@ export const verifyAuthentication = onCall({ invoker: "public", enforceAppCheck:
             },
         });
     } catch (error) {
-        logger.error('Authentication Verification Error:', error);
-        throw new HttpsError('internal', error.message);
+        throw toVerificationHttpsError(error, 'Authentication');
     }
 
     const { verified, authenticationInfo } = verification;
@@ -217,6 +271,14 @@ export const helloWorldOnCall = onCall({ invoker: "public", enforceAppCheck: fal
 
 // 6. Test HTTP Endpoint
 export const helloWorld = onRequest({ invoker: "public", enforceAppCheck: false }, (request, response) => {
+    if (request.path === '/.well-known/assetlinks.json') {
+        logger.info('Serving assetlinks.json from Cloud Run domain', { structuredData: true });
+        response.set('Content-Type', 'application/json');
+        response.set('Cache-Control', 'public, max-age=3600');
+        response.status(200).send(assetLinks);
+        return;
+    }
+
     logger.info("Hello logs!", { structuredData: true });
     response.send("Hello from Firebase!");
 });

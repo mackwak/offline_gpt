@@ -18,6 +18,8 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"
+        buildConfigField("boolean", "USE_FIREBASE_EMULATOR", "false")
+        buildConfigField("String", "FIREBASE_EMULATOR_HOST", "\"127.0.0.1\"")
     }
 
     flavorDimensions += "environment"
@@ -26,11 +28,13 @@ android {
             dimension = "environment"
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-dev"
+            buildConfigField("boolean", "USE_FIREBASE_EMULATOR", "true")
         }
         create("qa") {
             dimension = "environment"
             applicationIdSuffix = ".qa"
             versionNameSuffix = "-qa"
+            buildConfigField("boolean", "USE_FIREBASE_EMULATOR", "true")
         }
         create("prod") {
             dimension = "environment"
@@ -59,6 +63,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 

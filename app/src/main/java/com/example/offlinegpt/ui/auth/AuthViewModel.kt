@@ -13,8 +13,12 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetPublicKeyCredentialOption
 import androidx.credentials.PublicKeyCredential
+import androidx.credentials.exceptions.CreateCredentialException
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -90,21 +94,48 @@ class AuthViewModel @Inject constructor(
 
     fun onPasskeyLoginClick(context: Context) {
         viewModelScope.launch {
+            if (email.isBlank()) {
+                _events.emit(AuthEvent.Error("Please enter your email to sign in with Passkey"))
+                return@launch
+            }
             isLoading = true
             try {
                 val requestResult = functions
-                    .getHttpsCallable("requestRegistration")
-                    .call(mapOf("email" to "dpk94icu@gmail.com"))
+                    .getHttpsCallable("requestAuthentication")
+                    .call(mapOf("email" to email))
                     .await()
 
-                val dataMap = requestResult.data as? Map<*, *>
-                val message = dataMap?.get("message") as? String
-                    ?: dataMap?.get("response") as? String
-                    ?: requestResult.data.toString()
 
-                _events.emit(AuthEvent.Error(message))
+                val optionsMap = requestResult.data as? Map<*, *>
+                val optionsJson = if (optionsMap != null) JSONObject(optionsMap).toString() else requestResult.data.toString()
+
+                val credentialManager = CredentialManager.create(context)
+                val getPublicKeyCredentialOption = GetPublicKeyCredentialOption(optionsJson)
+                val getCredentialRequest = GetCredentialRequest(listOf(getPublicKeyCredentialOption))
+
+                val result = credentialManager.getCredential(context, getCredentialRequest)
+                val credential = result.credential
+
+                if (credential is CustomCredential && credential.type == PublicKeyCredential.TYPE_PUBLIC_KEY_CREDENTIAL) {
+                    val responseJson =
+                        credential.data.getString("androidx.credentials.BUNDLE_KEY_SUBTYPE_GET_PUBLIC_KEY_CREDENTIAL_RESPONSE_JSON")
+                            ?: throw Exception("Passkey response missing")
+
+                    val verifyResult = functions
+                        .getHttpsCallable("verifyAuthentication")
+                        .call(mapOf("email" to email, "authResponse" to responseJson))
+                        .await()
+
+                    val dataMap = verifyResult.data as? Map<*, *>
+                    val customToken = dataMap?.get("token") as? String
+                        ?: throw Exception("Custom token not received")
+                    auth.signInWithCustomToken(customToken).await()
+                    _events.emit(AuthEvent.Success)
+                } else {
+                    throw Exception("Unsupported passkey credential returned")
+                }
             } catch (e: Exception) {
-                _events.emit(AuthEvent.Error(e.localizedMessage ?: "requestRegistration failed"))
+                _events.emit(AuthEvent.Error(getPasskeyErrorMessage(e, isLogin = true)))
             } finally {
                 isLoading = false
             }
@@ -144,10 +175,35 @@ class AuthViewModel @Inject constructor(
                     _events.emit(AuthEvent.Error("Passkey creation failed"))
                 }
             } catch (e: Exception) {
-                _events.emit(AuthEvent.Error(e.localizedMessage ?: "Passkey registration failed"))
+                _events.emit(AuthEvent.Error(getPasskeyErrorMessage(e, isLogin = false)))
             } finally {
                 isLoading = false
             }
+        }
+    }
+
+    private fun getPasskeyErrorMessage(exception: Exception, isLogin: Boolean): String {
+        return when (exception) {
+            is NoCredentialException -> "No passkey available for this account on this device. Register a passkey first, or choose a device/account where one already exists."
+            is FirebaseFunctionsException -> {
+                val detailText = when (val details = exception.details) {
+                    is Map<*, *> -> details["rawMessage"] as? String
+                    else -> details?.toString()
+                }
+                buildString {
+                    append("${exception.code.name}: ")
+                    append(exception.message ?: if (isLogin) "Passkey sign-in failed" else "Passkey registration failed")
+                    if (!detailText.isNullOrBlank() && detailText != exception.message) {
+                        append("\n")
+                        append(detailText)
+                    }
+                }
+            }
+            is GetCredentialException -> exception.localizedMessage
+                ?: if (isLogin) "Passkey sign-in failed" else "Could not access passkeys on this device"
+            is CreateCredentialException -> exception.localizedMessage ?: "Passkey registration failed"
+            else -> exception.localizedMessage
+                ?: if (isLogin) "Passkey sign-in failed" else "Passkey registration failed"
         }
     }
 
