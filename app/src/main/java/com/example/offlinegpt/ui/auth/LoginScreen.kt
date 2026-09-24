@@ -30,6 +30,9 @@ fun LoginScreen(
         viewModel.events.collectLatest { event ->
             when (event) {
                 is AuthViewModel.AuthEvent.Success -> onLoginSuccess()
+                is AuthViewModel.AuthEvent.Message -> {
+                    Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
+                }
                 is AuthViewModel.AuthEvent.Error -> {
                     Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
                 }

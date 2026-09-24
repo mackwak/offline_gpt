@@ -18,8 +18,7 @@ const auth = getAuth();
 const rpName = 'OfflineGPT';
 const rpID = 'offlinegpt-dev.web.app';
 // 안드로이드 디버그 빌드 서명 해시가 적용된 오리진
-const expectedOrigin = 'android:apk-key-hash:KNLgEk0CUg8ZaHzApFUKhVOgxP5IYuFF-JbVJ1E0S3U';
-
+const expectedOrigin = 'android:apk-key-hash:KNLgEk0CUg8ZaHzApFUKhVOgxP5IYlFF-JbVJ1E0S3U';
 // --- [1] Passkey 등록 옵션 생성 ---
 export const generateRegisterOptions = onCall(async (request) => {
   const email = request.data.email;
@@ -48,12 +47,16 @@ export const generateRegisterOptions = onCall(async (request) => {
           const options = await generateRegistrationOptions({
               rpName,
               rpID,
-              // @simplewebauthn 규격에 맞게 Buffer (Uint8Array) 형태로 전달
               userID: userIdBuffer,
               userName: email,
+              authenticatorSelection: {
+                  residentKey: 'required',
+                  userVerification: 'preferred',
+                  authenticatorAttachment: 'platform',
+              },
           });
 
-          await userRef.update({ currentChallenge: options.challenge });
+          await userRef.set({ currentChallenge: options.challenge }, { merge: true });
           return options;
       } catch (error) {
           logger.error("등록 옵션 생성 중 에러:", error);
@@ -61,39 +64,109 @@ export const generateRegisterOptions = onCall(async (request) => {
       }
 });
 
+export const verifyRegister = onCall(async (request) => {
+
+   let { email, credential } = request.data;
+       if (!email || !credential) {
+           throw new HttpsError('invalid-argument', '이메일과 인증 정보가 필요합니다.');
+       }
+
+       try {
+           // 만약 credential이 JSON 문자열 형태라면 객체로 파싱
+           if (typeof credential === 'string') {
+               credential = JSON.parse(credential);
+           }
+
+           logger.info("파싱된 credential 객체 확인:", credential);
+
+           const userRef = db.collection('passkey_users').doc(email);
+           const userDoc = await userRef.get();
+
+           if (!userDoc.exists) {
+               throw new HttpsError('not-found', '사용자를 찾을 수 없습니다.');
+           }
+
+           const userData = userDoc.data();
+
+           // 표준 포맷으로 매핑
+           const formattedCredential = {
+               id: credential.id || credential.rawId,
+               rawId: credential.rawId || credential.id,
+               type: credential.type || 'public-key',
+               response: {
+                   clientDataJSON: credential.response?.clientDataJSON,
+                   attestationObject: credential.response?.attestationObject,
+                   transports: credential.response?.transports,
+               }
+           };
+
+           const verification = await verifyRegistrationResponse({
+               response: formattedCredential,
+               expectedChallenge: userData.currentChallenge,
+               expectedOrigin,
+               expectedRPID: rpID,
+           });
+
+           if (verification.verified && verification.registrationInfo) {
+               const { credentialPublicKey, credentialID, counter } = verification.registrationInfo;
+
+               const newDevice = {
+                   credentialID: Buffer.from(credentialID).toString('base64'),
+                   credentialPublicKey: Buffer.from(credentialPublicKey).toString('base64'),
+                   counter,
+               };
+
+               await userRef.update({
+                   devices: FieldValue.arrayUnion(newDevice),
+                   currentChallenge: null,
+               });
+
+               let uid;
+               try {
+                   const userRecord = await auth.getUserByEmail(email);
+                   uid = userRecord.uid;
+               } catch (e) {
+                   const userRecord = await auth.createUser({ email });
+                   uid = userRecord.uid;
+               }
+
+               const customToken = await auth.createCustomToken(uid);
+               return { verified: true, customToken };
+           } else {
+               throw new HttpsError('permission-denied', 'Passkey 검증에 실패했습니다.');
+           }
+       } catch (error) {
+           logger.error("등록 검증 중 에러:", error);
+           throw new HttpsError('internal', error.message);
+       }
+
+});
+
 // --- [3] Passkey 로그인 옵션 생성 ---
 export const generateAuthOptions = onCall(async (request) => {
-  // 사용자가 누구인지 특정할 수 있다면 email을 받고,
-  // 이메일 없이 디바이스의 패스키 목록으로 전역 로그인을 하려면 email을 생략할 수도 있습니다.
   const { email } = request.data;
-
   let allowCredentials = [];
 
   if (email) {
     const userRef = db.collection('passkey_users').doc(email);
     const userDoc = await userRef.get();
-    if (userDoc.exists && userDoc.data().devices) {
-      // 등록된 기기(Credential ID) 목록을 allowCredentials에 담아 특정 기기만 인증 유도
+    if (userDoc.exists && userDoc.data().devices && userDoc.data().devices.length > 0) {
       allowCredentials = userDoc.data().devices.map(dev => ({
-        id: Buffer.from(dev.credentialID, 'base64'),
+        id: dev.credentialID,
         type: 'public-key',
-        transports: ['internal'] // 안드로이드 기기 내장 패스키
       }));
     }
   }
 
   const options = await generateAuthenticationOptions({
     rpID,
-    allowCredentials,
+    allowCredentials: allowCredentials.length > 0 ? allowCredentials : undefined,
     userVerification: 'preferred',
   });
 
-  // 챌린지 임시 저장 (이메일이 있는 경우 해당 문서에, 혹은 임시 세션에 저장)
   if (email) {
-    await db.collection('passkey_users').doc(email).update({ currentChallenge: options.challenge });
-  } else {
-    // 이메일 없이 전역 로그인을 지원하려면 challenge를 별도 컬렉션에 관리해야 합니다.
-    await db.collection('passkey_challenges').doc(options.challenge).set({ createdAt: Date.now() });
+    const userRef = db.collection('passkey_users').doc(email);
+    await userRef.set({ currentChallenge: options.challenge }, { merge: true });
   }
 
   return options;

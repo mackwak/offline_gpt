@@ -13,6 +13,8 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetPublicKeyCredentialOption
 import androidx.credentials.PublicKeyCredential
+import androidx.credentials.exceptions.CreateCredentialException
+import androidx.credentials.exceptions.GetCredentialException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
@@ -129,8 +131,18 @@ class AuthViewModel @Inject constructor(
                 } else {
                     _events.emit(AuthEvent.Error("Invalid credential type"))
                 }
+            } catch (e: GetCredentialException) {
+                if (e.type.contains("NO_CREDENTIAL", ignoreCase = true) || e.message?.contains("No credentials", ignoreCase = true) == true) {
+                    _events.emit(AuthEvent.Error("No passkey found for $email on this device. Please register a passkey first."))
+                } else {
+                    _events.emit(AuthEvent.Error(e.localizedMessage ?: "Passkey authentication failed"))
+                }
             } catch (e: Exception) {
-                _events.emit(AuthEvent.Error(e.localizedMessage ?: "Passkey authentication failed"))
+                if (e.message?.contains("No credentials", ignoreCase = true) == true) {
+                    _events.emit(AuthEvent.Error("No passkey found for $email on this device. Please register a passkey first."))
+                } else {
+                    _events.emit(AuthEvent.Error(e.localizedMessage ?: "Passkey authentication failed"))
+                }
             } finally {
                 isLoading = false
             }
@@ -165,9 +177,15 @@ class AuthViewModel @Inject constructor(
                         .call(mapOf("email" to email, "credential" to registrationResponseJson))
                         .await()
 
-                    _events.emit(AuthEvent.Error("Passkey registered successfully! You can now log in with Passkey."))
+                    _events.emit(AuthEvent.Message("Passkey registered successfully! You can now log in with Passkey."))
                 } else {
                     _events.emit(AuthEvent.Error("Passkey registration failed"))
+                }
+            } catch (e: CreateCredentialException) {
+                if (e.type.contains("CANCELED", ignoreCase = true) || e.message?.contains("canceled", ignoreCase = true) == true) {
+                    _events.emit(AuthEvent.Error("Passkey registration canceled"))
+                } else {
+                    _events.emit(AuthEvent.Error(e.localizedMessage ?: "Passkey registration failed"))
                 }
             } catch (e: Exception) {
                 _events.emit(AuthEvent.Error(e.localizedMessage ?: "Passkey registration failed"))
@@ -180,6 +198,7 @@ class AuthViewModel @Inject constructor(
     sealed class AuthEvent {
         object Success : AuthEvent()
         object Logout : AuthEvent()
+        data class Message(val message: String) : AuthEvent()
         data class Error(val message: String) : AuthEvent()
     }
 }
