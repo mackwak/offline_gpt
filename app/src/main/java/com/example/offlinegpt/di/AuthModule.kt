@@ -1,6 +1,7 @@
 package com.example.offlinegpt.di
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
 import dagger.Module
@@ -29,4 +30,8 @@ object AuthModule {
         remoteConfig.fetchAndActivate()
         return remoteConfig
     }
+
+    @Provides
+    @Singleton
+    fun provideFirebaseFunctions(): FirebaseFunctions = FirebaseFunctions.getInstance()
 }

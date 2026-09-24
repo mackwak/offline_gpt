@@ -114,6 +114,11 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.config)
+    implementation(libs.firebase.functions)
+
+    // Credentials / Passkey
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services)
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

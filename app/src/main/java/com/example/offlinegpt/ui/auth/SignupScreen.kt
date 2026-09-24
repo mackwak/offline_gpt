@@ -12,6 +12,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collectLatest
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
+
 @Composable
 fun SignupScreen(
     viewModel: AuthViewModel,
@@ -69,6 +72,20 @@ fun SignupScreen(
             } else {
                 Text("Sign Up")
             }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { viewModel.onPasskeyRegisterClick(context) },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !viewModel.isLoading
+        ) {
+            Icon(
+                imageVector = Icons.Default.Fingerprint,
+                contentDescription = "Passkey Registration",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Register with Passkey")
         }
         TextButton(onClick = onNavigateBack) {
             Text("Already have an account? Login")
