@@ -1,5 +1,6 @@
 package com.example.offlinegpt.ui.auth
 
+import android.app.Activity
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -25,6 +26,7 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
 
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
@@ -83,7 +85,13 @@ fun LoginScreen(
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
-            onClick = { viewModel.onPasskeyLoginClick(context) },
+            onClick = {
+                if (activity != null) {
+                    viewModel.onPasskeyLoginClick(activity)
+                } else {
+                    Toast.makeText(context, "Passkey requires an Activity context", Toast.LENGTH_LONG).show()
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
             enabled = !viewModel.isLoading
         ) {

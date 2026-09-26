@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import {
     generateRegistrationOptions,
@@ -17,11 +17,48 @@ const auth = getAuth();
 // 설정
 const rpName = 'OfflineGPT';
 const rpID = 'offlinegpt-dev.web.app';
+
 // 안드로이드 디버그 빌드 서명 해시가 적용된 오리진
 const expectedOrigin = 'android:apk-key-hash:KNLgEk0CUg8ZaHzApFUKhVOgxP5IYlFF-JbVJ1E0S3U';
+
+const getErrorMessage = (error) => {
+  if (error instanceof HttpsError) return error.message;
+  if (error instanceof Error) return error.message;
+  return '알 수 없는 서버 오류가 발생했습니다.';
+};
+
+const rethrowHttpsError = (error) => {
+  if (error instanceof HttpsError) {
+    throw error;
+  }
+  throw new HttpsError('internal', getErrorMessage(error));
+};
+
+const normalizeEmail = (value) => {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const normalizeCredentialId = (value) => {
+  if (!value || typeof value !== 'string') return null;
+  try {
+    return Buffer.from(value, 'base64url').toString('base64url');
+  } catch (e) {
+    return null;
+  }
+};
+
+const toBufferFromEncoded = (value) => {
+  const normalized = normalizeCredentialId(value);
+  if (!normalized) {
+    throw new HttpsError('invalid-argument', 'credential 인코딩 복원에 실패했습니다.');
+  }
+  return Buffer.from(normalized, 'base64url');
+};
 // --- [1] Passkey 등록 옵션 생성 ---
 export const generateRegisterOptions = onCall(async (request) => {
-  const email = request.data.email;
+  const email = normalizeEmail(request.data.email);
       if (!email) {
           throw new HttpsError('invalid-argument', '이메일은 필수 입력 항목입니다.');
       }
@@ -31,17 +68,13 @@ export const generateRegisterOptions = onCall(async (request) => {
           const userDoc = await userRef.get();
 
           let userIdBuffer;
-          let userIdString;
 
           if (!userDoc.exists) {
-              // 이메일을 기반으로 Buffer(바이너리) 생성
               userIdBuffer = Buffer.from(email);
-              userIdString = userIdBuffer.toString('base64'); // Firestore 저장용
-              await userRef.set({ userId: userIdString, devices: [] });
+              await userRef.set({ userId: userIdBuffer.toString('base64url'), devices: [] });
           } else {
-              userIdString = userDoc.data().userId;
-              // Firestore에 저장된 문자열을 다시 Buffer(바이너리)로 복원
-              userIdBuffer = Buffer.from(userIdString, 'base64');
+              const storedUserId = userDoc.data().userId;
+              userIdBuffer = storedUserId ? Buffer.from(storedUserId, 'base64url') : Buffer.from(email);
           }
 
           const options = await generateRegistrationOptions({
@@ -51,8 +84,7 @@ export const generateRegisterOptions = onCall(async (request) => {
               userName: email,
               authenticatorSelection: {
                   residentKey: 'required',
-                  userVerification: 'preferred',
-                  authenticatorAttachment: 'platform',
+                  userVerification: 'required',
               },
           });
 
@@ -60,13 +92,15 @@ export const generateRegisterOptions = onCall(async (request) => {
           return options;
       } catch (error) {
           logger.error("등록 옵션 생성 중 에러:", error);
-          throw new HttpsError('internal', error.message);
+          rethrowHttpsError(error);
       }
 });
 
 export const verifyRegister = onCall(async (request) => {
 
-   let { email, credential } = request.data;
+   let { credential } = request.data;
+       const requestChallenge = typeof request.data.challenge === 'string' ? request.data.challenge : null;
+       const email = normalizeEmail(request.data.email);
        if (!email || !credential) {
            throw new HttpsError('invalid-argument', '이메일과 인증 정보가 필요합니다.');
        }
@@ -81,12 +115,11 @@ export const verifyRegister = onCall(async (request) => {
 
            const userRef = db.collection('passkey_users').doc(email);
            const userDoc = await userRef.get();
-
-           if (!userDoc.exists) {
-               throw new HttpsError('not-found', '사용자를 찾을 수 없습니다.');
+           const userData = userDoc.exists ? userDoc.data() : null;
+           const expectedChallenge = userData?.currentChallenge || requestChallenge;
+           if (!expectedChallenge) {
+               throw new HttpsError('failed-precondition', '진행 중인 등록 챌린지가 없습니다. 다시 등록을 시작해주세요.');
            }
-
-           const userData = userDoc.data();
 
            // 표준 포맷으로 매핑
            const formattedCredential = {
@@ -102,24 +135,27 @@ export const verifyRegister = onCall(async (request) => {
 
            const verification = await verifyRegistrationResponse({
                response: formattedCredential,
-               expectedChallenge: userData.currentChallenge,
+               expectedChallenge,
                expectedOrigin,
                expectedRPID: rpID,
            });
 
            if (verification.verified && verification.registrationInfo) {
                const { credentialPublicKey, credentialID, counter } = verification.registrationInfo;
+               const userIdBuffer = userData?.userId ? Buffer.from(userData.userId, 'base64url') : Buffer.from(email);
+               const userIdString = userIdBuffer.toString('base64url');
 
                const newDevice = {
-                   credentialID: Buffer.from(credentialID).toString('base64'),
-                   credentialPublicKey: Buffer.from(credentialPublicKey).toString('base64'),
+                   credentialID: Buffer.from(credentialID).toString('base64url'),
+                   credentialPublicKey: Buffer.from(credentialPublicKey).toString('base64url'),
                    counter,
                };
 
-               await userRef.update({
+               await userRef.set({
+                   userId: userIdString,
                    devices: FieldValue.arrayUnion(newDevice),
                    currentChallenge: null,
-               });
+               }, { merge: true });
 
                let uid;
                try {
@@ -137,14 +173,14 @@ export const verifyRegister = onCall(async (request) => {
            }
        } catch (error) {
            logger.error("등록 검증 중 에러:", error);
-           throw new HttpsError('internal', error.message);
+           rethrowHttpsError(error);
        }
 
 });
 
 // --- [3] Passkey 로그인 옵션 생성 ---
 export const generateAuthOptions = onCall(async (request) => {
-  const { email } = request.data;
+  const email = normalizeEmail(request.data.email);
   let allowCredentials = [];
 
   if (email) {
@@ -152,29 +188,43 @@ export const generateAuthOptions = onCall(async (request) => {
     const userDoc = await userRef.get();
     if (userDoc.exists && userDoc.data().devices && userDoc.data().devices.length > 0) {
       allowCredentials = userDoc.data().devices.map(dev => ({
-        id: dev.credentialID,
+        id: normalizeCredentialId(dev.credentialID),
         type: 'public-key',
-      }));
+      })).filter(dev => Boolean(dev.id));
     }
   }
 
   const options = await generateAuthenticationOptions({
     rpID,
     allowCredentials: allowCredentials.length > 0 ? allowCredentials : undefined,
-    userVerification: 'preferred',
+    userVerification: 'required',
   });
+
+  logger.info('generateAuthOptions summary', {
+    email: email ?? null,
+    rpID,
+    allowCredentialsCount: allowCredentials.length,
+    challengeLength: options.challenge?.length ?? 0,
+  });
+
+  const responseOptions = {
+    ...options,
+    rpId: rpID,
+    rpID: rpID,
+  };
 
   if (email) {
     const userRef = db.collection('passkey_users').doc(email);
     await userRef.set({ currentChallenge: options.challenge }, { merge: true });
   }
 
-  return options;
+  return responseOptions;
 });
 
 // --- [4] Passkey 로그인 검증 및 커스텀 토큰 발급 ---
 export const verifyAuth = onCall(async (request) => {
-  const { email, credential } = request.data;
+  const email = normalizeEmail(request.data.email);
+  const { credential } = request.data;
   if (!credential) {
     throw new HttpsError('invalid-argument', '인증 정보가 필요합니다.');
   }
@@ -193,6 +243,9 @@ export const verifyAuth = onCall(async (request) => {
     const userDoc = await userRef.get();
     if (!userDoc.exists) throw new HttpsError('not-found', '사용자를 찾을 수 없습니다.');
     userData = userDoc.data();
+    if (!userData.currentChallenge) {
+      throw new HttpsError('failed-precondition', '진행 중인 로그인 챌린지가 없습니다. 다시 시도해주세요.');
+    }
   } else {
     // 이메일 없이 로그인한 경우 credentialID로 사용자를 역추적해야 합니다.
     // 여기서는 간단하게 이메일이 필수로 전달되는 시나리오를 기준으로 합니다.
@@ -201,7 +254,16 @@ export const verifyAuth = onCall(async (request) => {
 
   // 저장된 퍼블릭 키 찾기
   const rawId = credObj.rawId || credObj.id;
-  const matchedDevice = userData.devices.find(d => d.credentialID === rawId || Buffer.from(d.credentialID, 'base64').toString('base64') === rawId);
+  const normalizedRawId = normalizeCredentialId(rawId);
+  const matchedDevice = userData.devices.find((d) => normalizeCredentialId(d.credentialID) === normalizedRawId);
+
+  logger.info('verifyAuth credential lookup', {
+    email: targetEmail,
+    hasRawId: Boolean(rawId),
+    normalizedRawIdPrefix: normalizedRawId?.slice(0, 12) ?? null,
+    devicesCount: Array.isArray(userData.devices) ? userData.devices.length : 0,
+    matched: Boolean(matchedDevice),
+  });
 
   if (!matchedDevice) {
     throw new HttpsError('not-found', '등록된 패스키 기기 정보를 찾을 수 없습니다.');
@@ -214,8 +276,8 @@ export const verifyAuth = onCall(async (request) => {
       expectedOrigin,
       expectedRPID: rpID,
       authenticator: {
-        credentialPublicKey: Buffer.from(matchedDevice.credentialPublicKey, 'base64'),
-        credentialID: Buffer.from(matchedDevice.credentialID, 'base64'),
+        credentialPublicKey: toBufferFromEncoded(matchedDevice.credentialPublicKey),
+        credentialID: toBufferFromEncoded(matchedDevice.credentialID),
         counter: matchedDevice.counter,
       },
     });
@@ -237,6 +299,7 @@ export const verifyAuth = onCall(async (request) => {
       throw new HttpsError('permission-denied', '인증 검증에 실패했습니다.');
     }
   } catch (error) {
-    throw new HttpsError('internal', error.message);
+    logger.error('로그인 검증 중 에러:', error);
+    rethrowHttpsError(error);
   }
 });
