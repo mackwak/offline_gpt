@@ -3,7 +3,6 @@
     "public": "public",
     "ignore": [
       "firebase.json",
-      "**/.*",
       "**/node_modules/**"
     ],
     "headers": [
@@ -19,8 +18,8 @@
     ],
     "rewrites": [
       {
-        "source": "/.well-known/assetlinks.json",
-        "destination": "/.well-known/assetlinks.json"
+        "source": "**",
+        "destination": "/index.html"
       }
     ]
   }, "functions": {

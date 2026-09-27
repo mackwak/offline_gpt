@@ -14,12 +14,17 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetPublicKeyCredentialOption
+import androidx.credentials.PublicKeyCredential
 import androidx.credentials.exceptions.CreateCredentialException
 import androidx.credentials.exceptions.GetCredentialException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
+import com.google.gson.annotations.SerializedName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -27,8 +32,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import javax.inject.Inject
 
 @HiltViewModel
@@ -38,10 +41,24 @@ class AuthViewModel @Inject constructor(
     private val functions: FirebaseFunctions
 ) : ViewModel() {
 
+    private data class AuthOptionsDto(
+        @SerializedName(value = "rpId", alternate = ["rpID"])
+        val rpId: String? = null,
+        val challenge: String? = null,
+        val userVerification: String? = null,
+        val allowCredentials: List<AllowCredentialDto>? = null
+    )
+
+    private data class AllowCredentialDto(
+        val id: String? = null
+    )
+
     private companion object {
         const val TAG = "AuthViewModel"
         const val PUBLIC_KEY_CREDENTIAL_TYPE = "androidx.credentials.TYPE_PUBLIC_KEY_CREDENTIAL"
     }
+
+    private val gson = Gson()
 
     private val noCredentialKeywords = listOf("no credential", "no credentials", "no passkey", "no_credential")
     private val canceledKeywords = listOf("canceled", "cancelled", "aborted")
@@ -125,6 +142,32 @@ class AuthViewModel @Inject constructor(
 
             isLoading = true
             try {
+
+                val requestData = mapOf("email" to email)
+                val reqResult = functions.getHttpsCallable("generateAuthOptions").call(requestData).await()
+                val optionsMap = reqResult.data as? Map<*, *> ?: throw IllegalStateException("인증 옵션을 가져오지 못했습니다.")
+
+                // Gson을 사용하여 안전하게 Map을 완벽한 JSON 문자열로 변환
+                val requestJson = gson.toJson(optionsMap)
+
+                // 2. CredentialManager로 Passkey 인증
+                val credentialManager = CredentialManager.create(activity)
+                val getPublicKeyCredentialOption = GetPublicKeyCredentialOption(requestJson)
+
+                val getCredentialRequest = GetCredentialRequest(
+                    credentialOptions = listOf(getPublicKeyCredentialOption)
+                )
+
+                val getResult = credentialManager.getCredential(
+                    context = activity,
+                    request = getCredentialRequest
+                )
+
+                val authResponseJson = when (val credential = getResult.credential) {
+                    is PublicKeyCredential -> credential.authenticationResponseJson
+                    else -> throw IllegalStateException("패스키 자격 증명을 찾을 수 없습니다.")
+                }
+                /*
                 logCredentialContext(activity, normalizedEmail, "login")
                 val credential = try {
                     val discoverableOptionsJson = requestAuthOptionsJson(normalizedEmail, discoverableOnly = true)
@@ -148,6 +191,8 @@ class AuthViewModel @Inject constructor(
                 } else {
                     _events.emit(AuthEvent.Error("Invalid credential type"))
                 }
+
+                */
             } catch (e: GetCredentialException) {
                 Log.w(TAG, "GetCredentialException type=${e.type}, message=${e.message}", e)
                 _events.emit(AuthEvent.Error(mapPasskeyLoginError(e, normalizedEmail)))
@@ -182,13 +227,13 @@ class AuthViewModel @Inject constructor(
 
     private fun sanitizeAuthOptionsJson(optionsJson: String): String {
         return runCatching {
-            val json = JSONObject(optionsJson)
-            // 안전하게 rpId 또는 rpID를 가져와서 rpId로 통일
-            val rpIdValue = json.optString("rpId").ifEmpty { json.optString("rpID") }
-            if (rpIdValue.isNotEmpty()) {
-                json.put("rpId", rpIdValue)
-            }
-            json.toString()
+            val authOptions = gson.fromJson(optionsJson, AuthOptionsDto::class.java)
+            val rpIdValue = authOptions?.rpId.orEmpty()
+            if (rpIdValue.isBlank()) return@runCatching optionsJson
+
+            val jsonObject = JsonParser.parseString(optionsJson).asJsonObject
+            jsonObject.addProperty("rpId", rpIdValue)
+            gson.toJson(jsonObject)
         }.getOrDefault(optionsJson)
     }
 
@@ -220,10 +265,10 @@ class AuthViewModel @Inject constructor(
 
     private fun logGetCredentialRequestDetails(activity: Activity, optionsJson: String) {
         runCatching {
-            val json = JSONObject(optionsJson)
-            val rpId = json.optString("rpId")
-            val userVerification = json.optString("userVerification")
-            val allowCredentialsCount = json.optJSONArray("allowCredentials")?.length() ?: 0
+            val authOptions = gson.fromJson(optionsJson, AuthOptionsDto::class.java)
+            val rpId = authOptions?.rpId.orEmpty()
+            val userVerification = authOptions?.userVerification.orEmpty()
+            val allowCredentialsCount = authOptions?.allowCredentials?.size ?: 0
             Log.i(
                 TAG,
                 "GetCredential request details package=${activity.packageName} sdk=${Build.VERSION.SDK_INT} rpId=$rpId allowCredentialsCount=$allowCredentialsCount userVerification=$userVerification"
@@ -235,9 +280,9 @@ class AuthViewModel @Inject constructor(
 
     private fun logNoCredentialDiagnostics(activity: Activity, optionsJson: String) {
         runCatching {
-            val json = JSONObject(optionsJson)
-            val rpId = json.optString("rpId")
-            val allowCredentialsCount = json.optJSONArray("allowCredentials")?.length() ?: 0
+            val authOptions = gson.fromJson(optionsJson, AuthOptionsDto::class.java)
+            val rpId = authOptions?.rpId.orEmpty()
+            val allowCredentialsCount = authOptions?.allowCredentials?.size ?: 0
             Log.w(
                 TAG,
                 "NoCredential diagnostics package=${activity.packageName} sdk=${Build.VERSION.SDK_INT} rpId=$rpId allowCredentialsCount=$allowCredentialsCount. Check same Google account, device screen lock, and existing passkey for this rpId."
@@ -328,6 +373,43 @@ class AuthViewModel @Inject constructor(
             }
             isLoading = true
             try {
+
+                // 1. Cloud Function에서 패스키 가입 옵션 요청
+                val requestData = mapOf("email" to email)
+                val reqResult = functions.getHttpsCallable("generateRegisterOptions").call(requestData).await()
+                val optionsMap = reqResult.data as? Map<*, *> ?: throw IllegalStateException("가입 옵션을 가져오지 못했습니다.")
+
+                // Gson을 사용하여 안전하게 Map을 완벽한 JSON 문자열로 변환
+                val requestJson = gson.toJson(optionsMap)
+
+                val challenge = extractChallenge(optionsMap, requestJson)
+
+                // 2. CredentialManager로 Passkey 생성
+                val credentialManager = CredentialManager.create(activity)
+                val createPublicKeyCredentialRequest = CreatePublicKeyCredentialRequest(requestJson)
+                val createResult = credentialManager.createCredential(
+                    context = activity,
+                    request = createPublicKeyCredentialRequest
+                )
+
+                val registrationResponseJson = when (createResult) {
+                    is CreatePublicKeyCredentialResponse -> createResult.registrationResponseJson
+                    else -> throw IllegalStateException("패스키 응답을 처리할 수 없습니다.")
+                }
+
+                // 3. Cloud Function에 패스키 가입 검증 요청
+                val verifyData = mapOf(
+                    "email" to email,
+                    "registrationResponse" to registrationResponseJson
+                )
+
+                val dataMap = completePasskeyRegistration(normalizedEmail, registrationResponseJson, challenge)
+                val registerToken = (dataMap?.get("customToken") ?: dataMap?.get("token")) as? String
+
+
+                _events.emit(AuthEvent.Message("Passkey registered successfully! ${registerToken}"))
+
+                /*
                 logCredentialContext(activity, normalizedEmail, "register")
                 Log.i(TAG, "Starting passkey registration for email: $normalizedEmail")
 
@@ -378,6 +460,8 @@ class AuthViewModel @Inject constructor(
                 } else {
                     _events.emit(AuthEvent.Error("Passkey registration failed"))
                 }
+
+                 */
             } catch (e: CreateCredentialException) {
                 Log.w(TAG, "CreateCredentialException type=${e.type}, message=${e.message}", e)
                 if (e.type.contains("CANCELED", ignoreCase = true) || e.message?.contains("canceled", ignoreCase = true) == true) {
@@ -416,24 +500,22 @@ class AuthViewModel @Inject constructor(
         val mapChallenge = optionsMap?.get("challenge") as? String
         if (!mapChallenge.isNullOrBlank()) return mapChallenge
 
-        return runCatching { JSONObject(optionsJson).optString("challenge") }
+        return runCatching { gson.fromJson(optionsJson, AuthOptionsDto::class.java)?.challenge }
             .getOrNull()
             ?.takeIf { it.isNotBlank() }
     }
 
     private fun logAuthOptionsSummary(optionsJson: String, email: String?) {
         runCatching {
-            val json = JSONObject(optionsJson)
-            val rpId = json.optString("rpId")
-            val challenge = json.optString("challenge")
-            val allowCredentials = json.optJSONArray("allowCredentials") ?: JSONArray()
-            val ids = (0 until allowCredentials.length()).mapNotNull { idx ->
-                allowCredentials.optJSONObject(idx)?.optString("id")
-            }
+            val authOptions = gson.fromJson(optionsJson, AuthOptionsDto::class.java)
+            val rpId = authOptions?.rpId.orEmpty()
+            val challenge = authOptions?.challenge.orEmpty()
+            val allowCredentials = authOptions?.allowCredentials.orEmpty()
+            val ids = allowCredentials.mapNotNull { it.id }
 
             Log.i(
                 TAG,
-                "Auth options summary email=$email rpId=$rpId challengeLen=${challenge.length} allowCredentialsCount=${allowCredentials.length()} allowCredentialIds=$ids"
+                "Auth options summary email=$email rpId=$rpId challengeLen=${challenge.length} allowCredentialsCount=${allowCredentials.size} allowCredentialIds=$ids"
             )
         }.onFailure {
             Log.w(TAG, "Failed to parse auth options JSON for logging: ${it.message}")
@@ -441,30 +523,7 @@ class AuthViewModel @Inject constructor(
     }
 
     private fun mapToJsonString(map: Map<*, *>): String {
-        return (toJson(map) as JSONObject).toString()
-    }
-
-    private fun toJson(value: Any?): Any = when (value) {
-        null -> JSONObject.NULL
-        is Map<*, *> -> {
-            val json = JSONObject()
-            value.forEach { (k, v) ->
-                if (k != null) json.put(k.toString(), toJson(v))
-            }
-            json
-        }
-        is Iterable<*> -> {
-            val array = JSONArray()
-            value.forEach { array.put(toJson(it)) }
-            array
-        }
-        is Array<*> -> {
-            val array = JSONArray()
-            value.forEach { array.put(toJson(it)) }
-            array
-        }
-        is Boolean, is Number, is String, is JSONObject, is JSONArray -> value
-        else -> value.toString()
+        return gson.toJson(map)
     }
 
     private fun mapPasskeyRegisterError(error: Throwable, userEmail: String): String {
