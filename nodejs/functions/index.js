@@ -18,8 +18,10 @@ const auth = getAuth();
 const rpName = 'OfflineGPT';
 const rpID = 'offlinegpt-dev.web.app';
 
+
 // 안드로이드 디버그 빌드 서명 해시가 적용된 오리진
-const expectedOrigin = 'android:apk-key-hash:KNLgEk0CUg8ZaHzApFUKhVOgxP5IYlFF-JbVJ1E0S3U';
+const expectedOrigin = 'android:apk-key-hash:gK8G8CbpFLbRvSfe2OvKkyvd9QcgP5cuRoRIiXGAolg';
+//const expectedOrigin = 'android:apk-key-hash:KNLgEk0CUg8ZaHzApFUKhVOgxP5IYlFF-JbVJ1E0S3U';
 
 const getErrorMessage = (error) => {
   if (error instanceof HttpsError) return error.message;
@@ -76,6 +78,7 @@ export const generateRegisterOptions = onCall(async (request) => {
               const storedUserId = userDoc.data().userId;
               userIdBuffer = storedUserId ? Buffer.from(storedUserId, 'base64url') : Buffer.from(email);
           }
+          const userIdString = userIdBuffer.toString('base64url');
 
           const options = await generateRegistrationOptions({
               rpName,
@@ -181,9 +184,10 @@ export const verifyRegister = onCall(async (request) => {
 // --- [3] Passkey 로그인 옵션 생성 ---
 export const generateAuthOptions = onCall(async (request) => {
   const email = normalizeEmail(request.data.email);
+  const discoverableOnly = request.data?.discoverableOnly === true;
   let allowCredentials = [];
 
-  if (email) {
+  if (email && !discoverableOnly) {
     const userRef = db.collection('passkey_users').doc(email);
     const userDoc = await userRef.get();
     if (userDoc.exists && userDoc.data().devices && userDoc.data().devices.length > 0) {
@@ -203,13 +207,13 @@ export const generateAuthOptions = onCall(async (request) => {
   logger.info('generateAuthOptions summary', {
     email: email ?? null,
     rpID,
+    discoverableOnly,
     allowCredentialsCount: allowCredentials.length,
     challengeLength: options.challenge?.length ?? 0,
   });
 
   const responseOptions = {
     ...options,
-    rpId: rpID,
     rpID: rpID,
   };
 

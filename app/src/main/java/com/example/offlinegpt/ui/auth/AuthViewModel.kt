@@ -1,7 +1,6 @@
 package com.example.offlinegpt.ui.auth
 
 import android.app.Activity
-import android.accounts.AccountManager
 import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -128,16 +127,16 @@ class AuthViewModel @Inject constructor(
             try {
                 logCredentialContext(activity, normalizedEmail, "login")
                 val credential = try {
-                    val optionsJson = requestAuthOptionsJson(normalizedEmail)
-                    getPasskeyCredential(activity, optionsJson)
+                    val discoverableOptionsJson = requestAuthOptionsJson(normalizedEmail, discoverableOnly = true)
+                    getPasskeyCredential(activity, discoverableOptionsJson)
                 } catch (e: GetCredentialException) {
-                    Log.w(TAG, "Scoped passkey getCredential failed (${e.type}: ${e.message}), retrying with discoverable credentials", e)
-                    val fallbackOptionsJson = requestAuthOptionsJson(null)
-                    getPasskeyCredential(activity, fallbackOptionsJson)
+                    Log.w(TAG, "Discoverable passkey getCredential failed (${e.type}: ${e.message}), retrying with scoped credentials", e)
+                    val scopedOptionsJson = requestAuthOptionsJson(normalizedEmail)
+                    getPasskeyCredential(activity, scopedOptionsJson)
                 } catch (e: Exception) {
-                    Log.w(TAG, "Scoped passkey failed (${e.message}), retrying with discoverable credentials", e)
-                    val fallbackOptionsJson = requestAuthOptionsJson(null)
-                    getPasskeyCredential(activity, fallbackOptionsJson)
+                    Log.w(TAG, "Discoverable passkey failed (${e.message}), retrying with scoped credentials", e)
+                    val scopedOptionsJson = requestAuthOptionsJson(normalizedEmail)
+                    getPasskeyCredential(activity, scopedOptionsJson)
                 }
 
                 if (credential is CustomCredential && credential.type == PUBLIC_KEY_CREDENTIAL_TYPE) {
@@ -164,8 +163,11 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    private suspend fun requestAuthOptionsJson(email: String?): String {
-        val payload = email?.let { mapOf("email" to it) } ?: emptyMap<String, String>()
+    private suspend fun requestAuthOptionsJson(email: String?, discoverableOnly: Boolean = false): String {
+        val payload = buildMap<String, Any> {
+            if (!email.isNullOrBlank()) put("email", email)
+            if (discoverableOnly) put("discoverableOnly", true)
+        }
         val requestResult = functions
             .getHttpsCallable("generateAuthOptions")
             .call(payload)
@@ -181,10 +183,10 @@ class AuthViewModel @Inject constructor(
     private fun sanitizeAuthOptionsJson(optionsJson: String): String {
         return runCatching {
             val json = JSONObject(optionsJson)
-            if (json.has("rpID") && !json.has("rpId")) {
-                json.put("rpId", json.getString("rpID"))
-            } else if (!json.has("rpId") && !json.has("rpID")) {
-                json.put("rpId", "offlinegpt-dev.web.app")
+            // 안전하게 rpId 또는 rpID를 가져와서 rpId로 통일
+            val rpIdValue = json.optString("rpId").ifEmpty { json.optString("rpID") }
+            if (rpIdValue.isNotEmpty()) {
+                json.put("rpId", rpIdValue)
             }
             json.toString()
         }.getOrDefault(optionsJson)
@@ -202,12 +204,46 @@ class AuthViewModel @Inject constructor(
             throw IllegalStateException("Screen changed while preparing passkey sign-in. Please try again.")
         }
 
+        logGetCredentialRequestDetails(activity, optionsJson)
+
         try {
             Log.i(TAG, "Calling getCredential. optionsLength=${optionsJson.length}")
             credentialManager.getCredential(activity, getCredentialRequest).credential
         } catch (t: Throwable) {
+            if (t is androidx.credentials.exceptions.NoCredentialException) {
+                logNoCredentialDiagnostics(activity, optionsJson)
+            }
             Log.e(TAG, "getCredential failed: ${t.javaClass.name}, message=${t.message}", t)
             throw t
+        }
+    }
+
+    private fun logGetCredentialRequestDetails(activity: Activity, optionsJson: String) {
+        runCatching {
+            val json = JSONObject(optionsJson)
+            val rpId = json.optString("rpId")
+            val userVerification = json.optString("userVerification")
+            val allowCredentialsCount = json.optJSONArray("allowCredentials")?.length() ?: 0
+            Log.i(
+                TAG,
+                "GetCredential request details package=${activity.packageName} sdk=${Build.VERSION.SDK_INT} rpId=$rpId allowCredentialsCount=$allowCredentialsCount userVerification=$userVerification"
+            )
+        }.onFailure {
+            Log.w(TAG, "Failed to parse getCredential request JSON: ${it.message}")
+        }
+    }
+
+    private fun logNoCredentialDiagnostics(activity: Activity, optionsJson: String) {
+        runCatching {
+            val json = JSONObject(optionsJson)
+            val rpId = json.optString("rpId")
+            val allowCredentialsCount = json.optJSONArray("allowCredentials")?.length() ?: 0
+            Log.w(
+                TAG,
+                "NoCredential diagnostics package=${activity.packageName} sdk=${Build.VERSION.SDK_INT} rpId=$rpId allowCredentialsCount=$allowCredentialsCount. Check same Google account, device screen lock, and existing passkey for this rpId."
+            )
+        }.onFailure {
+            Log.w(TAG, "Failed to build NoCredential diagnostics: ${it.message}")
         }
     }
 
@@ -464,11 +500,11 @@ class AuthViewModel @Inject constructor(
 
     private fun logCredentialContext(activity: Activity, normalizedEmail: String, flow: String) {
         runCatching {
-            val accounts = AccountManager.get(activity).getAccountsByType("com.google").map { it.name }
-            val firebaseUserEmail = auth.currentUser?.email
+            val firebaseUserEmail = auth.currentUser?.email ?: "(none)"
+            val firebaseUid = auth.currentUser?.uid ?: "(none)"
             Log.i(
                 TAG,
-                "Credential context flow=$flow package=${activity.packageName} uid=${android.os.Process.myUid()} inputEmail=$normalizedEmail firebaseUser=$firebaseUserEmail googleAccounts=$accounts"
+                "Credential context flow=$flow package=${activity.packageName} uid=${android.os.Process.myUid()} inputEmail=$normalizedEmail firebaseUserEmail=$firebaseUserEmail firebaseUid=$firebaseUid"
             )
         }.onFailure {
             Log.w(TAG, "Failed to log credential context: ${it.message}")
