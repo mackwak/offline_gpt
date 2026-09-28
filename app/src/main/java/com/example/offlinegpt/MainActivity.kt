@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -94,7 +96,10 @@ class MainActivity : ComponentActivity() {
                             onNavigateToMbti = { navController.navigate("mbti") },
                             onNavigateToMbtiHistory = { navController.navigate("mbti_history") },
                             onNavigateToCalculator = { navController.navigate("calculator") },
-                            onNavigateToCompass = { navController.navigate("compass") }
+                            onNavigateToCompass = { navController.navigate("compass") },
+                            onNavigateToDiary = { navController.navigate("diary") },
+                            onNavigateToWeather = { navController.navigate("weather") },
+                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") }
                         )
                     }
                     composable("chat_list") {
@@ -145,7 +150,6 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("compass") {
-                        val chatViewModel: ChatViewModel = hiltViewModel()
                         CompassScreen(
                             onBack = { navController.popBackStack() }
                         )
@@ -165,21 +169,24 @@ fun HomeScreen(
     onNavigateToMbtiHistory: () -> Unit,
     onNavigateToCalculator: () -> Unit,
     onNavigateToCompass: () -> Unit,
+    onNavigateToDiary: () -> Unit = {},
+    onNavigateToWeather: () -> Unit = {},
+    onNavigateToNearbyPlaces: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val chatViewModel: ChatViewModel = hiltViewModel()
-    val errorMessage = chatViewModel.currentStreamingText.collectAsState(null)
     val userEmail = authViewModel.userEmail
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .systemBarsPadding()
-            .padding(16.dp),
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Welcome to OfflineGPT!", style = MaterialTheme.typography.headlineMedium)
+        Text(text = "Welcome to ${authViewModel.appName}!", style = MaterialTheme.typography.headlineMedium)
         if (!userEmail.isNullOrBlank()) {
             Text(
                 text = "Logged in as: $userEmail",
@@ -207,13 +214,23 @@ fun HomeScreen(
             }
         }
 
-        Button(onClick = onNavigateToCalculator, modifier = Modifier.fillMaxWidth()) {
-            Text("Calculator")
-        }
-
         Button(onClick = onNavigateToCompass, modifier = Modifier.fillMaxWidth()) {
             Text("Compass")
         }
+
+        Button(onClick = onNavigateToDiary, modifier = Modifier.fillMaxWidth()) {
+            Text("Diary")
+        }
+
+        Button(onClick = onNavigateToWeather, modifier = Modifier.fillMaxWidth()) {
+            Text("Weather Forecast")
+        }
+
+        Button(onClick = onNavigateToNearbyPlaces, modifier = Modifier.fillMaxWidth()) {
+            Text("Search Nearby Favorite Shop/Place")
+        }
+
+
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onNavigateToMbti, modifier = Modifier.weight(1f)) {
@@ -224,7 +241,7 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = onLogout,
