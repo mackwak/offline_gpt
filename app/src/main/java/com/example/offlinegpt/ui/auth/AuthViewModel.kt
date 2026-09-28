@@ -264,16 +264,28 @@ class AuthViewModel @Inject constructor(
     }
 
     private suspend fun completePasskeyLogin(email: String, responseJson: String) {
+        val normalizedEmail = email.trim().lowercase()
+        require(responseJson.isNotBlank()) { "Passkey authentication response cannot be empty" }
+
+        val payload = buildMap {
+            if (normalizedEmail.isNotBlank()) put("email", normalizedEmail)
+            put("credential", responseJson)
+        }
+
+        Log.i(TAG, "Completing passkey login for email: $normalizedEmail")
+
         val verifyResult = functions
             .getHttpsCallable("verifyAuth")
-            .call(mapOf("email" to email, "credential" to responseJson))
+            .call(payload)
             .await()
 
         val dataMap = verifyResult.data as? Map<*, *>
         val customToken = (dataMap?.get("customToken") ?: dataMap?.get("token")) as? String
-            ?: throw Exception("Custom token not received from server")
+            ?: throw IllegalStateException("Custom token not received from server")
 
+        Log.i(TAG, "Signing in with custom token for passkey login...")
         auth.signInWithCustomToken(customToken).await()
+        Log.i(TAG, "Passkey login successfully completed!")
     }
 
     private fun mapPasskeyLoginError(error: Throwable, userEmail: String): String {

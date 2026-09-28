@@ -40,21 +40,64 @@ const normalizeEmail = (value) => {
   return normalized.length > 0 ? normalized : null;
 };
 
-const normalizeCredentialId = (value) => {
-  if (!value || typeof value !== 'string') return null;
-  try {
-    return Buffer.from(value, 'base64url').toString('base64url');
-  } catch (e) {
-    return null;
+// Safely normalize or extract base64url string credential ID
+const safeBase64UrlString = (val) => {
+  if (!val) return '';
+  if (typeof val === 'string') return val.trim();
+  if (Buffer.isBuffer(val) || val instanceof Uint8Array) {
+    return Buffer.from(val).toString('base64url');
   }
+  return String(val);
 };
 
-const toBufferFromEncoded = (value) => {
-  const normalized = normalizeCredentialId(value);
-  if (!normalized) {
-    throw new HttpsError('invalid-argument', 'credential 인코딩 복원에 실패했습니다.');
-  }
-  return Buffer.from(normalized, 'base64url');
+// Convert credential ID (handling single or legacy double-encoded base64url) to Buffer
+const toCredentialIdBuffer = (val) => {
+  if (!val) return Buffer.alloc(0);
+  let str = safeBase64UrlString(val);
+
+  try {
+    const decodedAscii = Buffer.from(str, 'base64url').toString('utf-8');
+    if (/^[A-Za-z0-9_-]+$/.test(decodedAscii) && decodedAscii.length >= 8 && decodedAscii.length <= 200) {
+      str = decodedAscii;
+    }
+  } catch (e) {}
+
+  return Buffer.from(str, 'base64url');
+};
+
+// Convert credential public key (handling single or legacy double-encoded base64url) to Buffer
+const toPublicKeyBuffer = (val) => {
+  if (!val) return Buffer.alloc(0);
+  let str = safeBase64UrlString(val);
+
+  try {
+    const decodedAscii = Buffer.from(str, 'base64url').toString('utf-8');
+    if (/^[A-Za-z0-9_-]+$/.test(decodedAscii) && decodedAscii.length >= 20 && decodedAscii.length <= 500) {
+      str = decodedAscii;
+    }
+  } catch (e) {}
+
+  return Buffer.from(str, 'base64url');
+};
+
+// Check if two credential ID values match (handling raw base64url and double-encoded base64url)
+const credentialIdsMatch = (id1, id2) => {
+  if (!id1 || !id2) return false;
+  const str1 = safeBase64UrlString(id1);
+  const str2 = safeBase64UrlString(id2);
+  if (str1 === str2) return true;
+
+  try {
+    const ascii1 = Buffer.from(str1, 'base64url').toString('utf-8');
+    if (ascii1 === str2) return true;
+  } catch (e) {}
+
+  try {
+    const ascii2 = Buffer.from(str2, 'base64url').toString('utf-8');
+    if (ascii2 === str1) return true;
+  } catch (e) {}
+
+  return false;
 };
 
 // --- [1] Passkey 등록 옵션 생성 ---
@@ -146,13 +189,19 @@ export const verifyRegister = onCall(async (request) => {
        });
 
        if (verification.verified && verification.registrationInfo) {
-           const { credentialPublicKey, credentialID, counter } = verification.registrationInfo;
+           const { registrationInfo } = verification;
+           const cred = registrationInfo.credential;
+
+           const credentialIDStr = cred?.id || safeBase64UrlString(registrationInfo.credentialID);
+           const credentialPublicKeyStr = safeBase64UrlString(cred?.publicKey || registrationInfo.credentialPublicKey);
+           const counter = cred?.counter ?? registrationInfo.counter ?? 0;
+
            const userIdBuffer = userData?.userId ? Buffer.from(userData.userId, 'base64url') : Buffer.from(email);
            const userIdString = userIdBuffer.toString('base64url');
 
            const newDevice = {
-               credentialID: Buffer.from(credentialID).toString('base64url'),
-               credentialPublicKey: Buffer.from(credentialPublicKey).toString('base64url'),
+               credentialID: credentialIDStr,
+               credentialPublicKey: credentialPublicKeyStr,
                counter,
            };
 
@@ -193,7 +242,7 @@ export const generateAuthOptions = onCall(async (request) => {
     const userDoc = await userRef.get();
     if (userDoc.exists && Array.isArray(userDoc.data().devices) && userDoc.data().devices.length > 0) {
       allowCredentials = userDoc.data().devices.map(dev => ({
-        id: normalizeCredentialId(dev.credentialID),
+        id: safeBase64UrlString(dev.credentialID),
         type: 'public-key',
       })).filter(dev => Boolean(dev.id));
     }
@@ -242,8 +291,11 @@ export const verifyAuth = onCall(async (request) => {
     } catch (e) {}
   }
 
+  const requestRawId = credObj.rawId || credObj.id;
+
   let userRef, userData, targetEmail = email;
 
+  // 1) Direct lookup by email
   if (targetEmail) {
     userRef = db.collection('passkey_users').doc(targetEmail);
     const userDoc = await userRef.get();
@@ -252,22 +304,34 @@ export const verifyAuth = onCall(async (request) => {
     }
   }
 
-  // If email was not provided or user doc not found directly, look up user by credentialID
-  if (!userData) {
-    const rawId = credObj.rawId || credObj.id;
-    const normalizedRawId = normalizeCredentialId(rawId);
-    if (normalizedRawId) {
-      const snapshot = await db.collection('passkey_users').get();
-      for (const doc of snapshot.docs) {
-        const data = doc.data();
-        if (Array.isArray(data.devices)) {
-          const found = data.devices.find((d) => normalizeCredentialId(d.credentialID) === normalizedRawId);
-          if (found) {
-            targetEmail = doc.id;
-            userRef = doc.ref;
-            userData = data;
-            break;
-          }
+  // 2) Lookup by userHandle embedded in WebAuthn response
+  if (!userData && credObj?.response?.userHandle) {
+    try {
+      const decodedUserHandle = Buffer.from(credObj.response.userHandle, 'base64url').toString('utf-8');
+      const handleEmail = normalizeEmail(decodedUserHandle);
+      if (handleEmail) {
+        const handleDoc = await db.collection('passkey_users').doc(handleEmail).get();
+        if (handleDoc.exists) {
+          targetEmail = handleEmail;
+          userRef = handleDoc.ref;
+          userData = handleDoc.data();
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 3) Lookup by matching credentialID across passkey_users collection
+  if (!userData && requestRawId) {
+    const snapshot = await db.collection('passkey_users').get();
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      if (Array.isArray(data.devices)) {
+        const found = data.devices.find((d) => credentialIdsMatch(d.credentialID, requestRawId));
+        if (found) {
+          targetEmail = doc.id;
+          userRef = doc.ref;
+          userData = data;
+          break;
         }
       }
     }
@@ -281,16 +345,14 @@ export const verifyAuth = onCall(async (request) => {
     throw new HttpsError('failed-precondition', '진행 중인 로그인 챌린지가 없습니다. 다시 시도해주세요.');
   }
 
-  const rawId = credObj.rawId || credObj.id;
-  const normalizedRawId = normalizeCredentialId(rawId);
+  // Find matching device record for authentication verification
   const matchedDevice = Array.isArray(userData.devices)
-    ? userData.devices.find((d) => normalizeCredentialId(d.credentialID) === normalizedRawId)
+    ? userData.devices.find((d) => credentialIdsMatch(d.credentialID, requestRawId))
     : null;
 
   logger.info('verifyAuth credential lookup', {
     email: targetEmail,
-    hasRawId: Boolean(rawId),
-    normalizedRawIdPrefix: normalizedRawId?.slice(0, 12) ?? null,
+    requestRawId,
     devicesCount: Array.isArray(userData.devices) ? userData.devices.length : 0,
     matched: Boolean(matchedDevice),
   });
@@ -306,8 +368,8 @@ export const verifyAuth = onCall(async (request) => {
       expectedOrigin,
       expectedRPID: rpID,
       authenticator: {
-        credentialPublicKey: toBufferFromEncoded(matchedDevice.credentialPublicKey),
-        credentialID: toBufferFromEncoded(matchedDevice.credentialID),
+        credentialPublicKey: toPublicKeyBuffer(matchedDevice.credentialPublicKey),
+        credentialID: toCredentialIdBuffer(requestRawId || matchedDevice.credentialID),
         counter: matchedDevice.counter,
       },
     });
