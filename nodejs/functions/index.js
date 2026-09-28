@@ -11,7 +11,7 @@ import {
 } from '@simplewebauthn/server';
 
 initializeApp();
-const db = getFirestore('webauthn');
+const db = getFirestore();
 const auth = getAuth();
 
 // 설정
@@ -19,7 +19,8 @@ const rpName = 'OfflineGPT';
 const rpID = 'offlinegpt-dev.web.app';
 
 // 안드로이드 디버그 빌드 서명 해시가 적용된 오리진
-const expectedOrigin = 'android:apk-key-hash:KNLgEk0CUg8ZaHzApFUKhVOgxP5IYlFF-JbVJ1E0S3U';
+//const expectedOrigin = 'android:apk-key-hash:KNLgEk0CUg8ZaHzApFUKhVOgxP5IYlFF-JbVJ1E0S3U'; //debub
+const expectedOrigin = 'android:apk-key-hash:gK8G8CbpFLbRvSfe2OvKkyvd9QcgP5cuRoRIiXGAolg'; // release
 
 const getErrorMessage = (error) => {
   if (error instanceof HttpsError) return error.message;

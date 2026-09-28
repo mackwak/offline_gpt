@@ -65,7 +65,8 @@ class AuthViewModel @Inject constructor(
 
     val isLoggedIn: Boolean
         get() = auth.currentUser != null
-
+    val userEmail: String?
+        get() = auth.currentUser?.email
     val appName: String
         get() = remoteConfig.getString("APP_NAME")
 

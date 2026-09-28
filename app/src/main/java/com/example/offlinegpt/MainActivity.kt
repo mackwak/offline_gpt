@@ -164,10 +164,13 @@ fun HomeScreen(
     onNavigateToMbti: () -> Unit,
     onNavigateToMbtiHistory: () -> Unit,
     onNavigateToCalculator: () -> Unit,
-    onNavigateToCompass: () -> Unit
+    onNavigateToCompass: () -> Unit,
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val chatViewModel: ChatViewModel = hiltViewModel()
     val errorMessage = chatViewModel.currentStreamingText.collectAsState(null)
+    val userEmail = authViewModel.userEmail
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -177,7 +180,13 @@ fun HomeScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(text = "Welcome to OfflineGPT!", style = MaterialTheme.typography.headlineMedium)
-
+        if (!userEmail.isNullOrBlank()) {
+            Text(
+                text = "Logged in as: $userEmail",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         if (chatViewModel.checkIfGemmaModelExist()) {
             Button(onClick = onNavigateToChats, modifier = Modifier.fillMaxWidth()) {
                 Text("GPT Chats")
