@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
             OfflineGPTTheme {
                 val navController = rememberNavController()
                 val authViewModel: AuthViewModel = hiltViewModel()
-                val startDestination = if (authViewModel.isLoggedIn) "home" else "home"
+                val startDestination = if (authViewModel.isLoggedIn) "home" else "login"
 
                 val locationPermissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestMultiplePermissions()
@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(
                     navController = navController,
-                    startDestination = "home",
+                    startDestination = startDestination,
                     modifier = Modifier.fillMaxSize()
                 ) {
                     composable("login") {

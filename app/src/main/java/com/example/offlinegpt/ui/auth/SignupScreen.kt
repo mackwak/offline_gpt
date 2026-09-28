@@ -58,27 +58,8 @@ fun SignupScreen(
             label = { Text("Email") },
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = viewModel.password,
-            onValueChange = { viewModel.password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
         Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = { viewModel.onSignupClick() },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !viewModel.isLoading
-        ) {
-            if (viewModel.isLoading) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
-            } else {
-                Text("Sign Up")
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
+
         OutlinedButton(
             onClick = {
                 if (activity != null) {
