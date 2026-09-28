@@ -22,7 +22,6 @@ import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -142,33 +141,8 @@ class AuthViewModel @Inject constructor(
 
             isLoading = true
             try {
-
-                val requestData = mapOf("email" to email)
-                val reqResult = functions.getHttpsCallable("generateAuthOptions").call(requestData).await()
-                val optionsMap = reqResult.data as? Map<*, *> ?: throw IllegalStateException("인증 옵션을 가져오지 못했습니다.")
-
-                // Gson을 사용하여 안전하게 Map을 완벽한 JSON 문자열로 변환
-                val requestJson = gson.toJson(optionsMap)
-
-                // 2. CredentialManager로 Passkey 인증
-                val credentialManager = CredentialManager.create(activity)
-                val getPublicKeyCredentialOption = GetPublicKeyCredentialOption(requestJson)
-
-                val getCredentialRequest = GetCredentialRequest(
-                    credentialOptions = listOf(getPublicKeyCredentialOption)
-                )
-
-                val getResult = credentialManager.getCredential(
-                    context = activity,
-                    request = getCredentialRequest
-                )
-
-                val authResponseJson = when (val credential = getResult.credential) {
-                    is PublicKeyCredential -> credential.authenticationResponseJson
-                    else -> throw IllegalStateException("패스키 자격 증명을 찾을 수 없습니다.")
-                }
-                /*
                 logCredentialContext(activity, normalizedEmail, "login")
+
                 val credential = try {
                     val discoverableOptionsJson = requestAuthOptionsJson(normalizedEmail, discoverableOnly = true)
                     getPasskeyCredential(activity, discoverableOptionsJson)
@@ -182,17 +156,14 @@ class AuthViewModel @Inject constructor(
                     getPasskeyCredential(activity, scopedOptionsJson)
                 }
 
-                if (credential is CustomCredential && credential.type == PUBLIC_KEY_CREDENTIAL_TYPE) {
-                    val responseJson = credential.data.getString("androidx.credentials.BUNDLE_KEY_SUBTYPE_GET_PUBLIC_KEY_CREDENTIAL_RESPONSE_JSON")
-                        ?: throw Exception("Passkey response missing")
+                val responseJson = when (credential) {
+                    is PublicKeyCredential -> credential.authenticationResponseJson
+                    is CustomCredential -> credential.data.getString("androidx.credentials.BUNDLE_KEY_SUBTYPE_GET_PUBLIC_KEY_CREDENTIAL_RESPONSE_JSON")
+                    else -> null
+                } ?: throw Exception("Passkey response missing")
 
-                    completePasskeyLogin(normalizedEmail, responseJson)
-                    _events.emit(AuthEvent.Success)
-                } else {
-                    _events.emit(AuthEvent.Error("Invalid credential type"))
-                }
-
-                */
+                completePasskeyLogin(normalizedEmail, responseJson)
+                _events.emit(AuthEvent.Success)
             } catch (e: GetCredentialException) {
                 Log.w(TAG, "GetCredentialException type=${e.type}, message=${e.message}", e)
                 _events.emit(AuthEvent.Error(mapPasskeyLoginError(e, normalizedEmail)))
@@ -373,43 +344,6 @@ class AuthViewModel @Inject constructor(
             }
             isLoading = true
             try {
-
-                // 1. Cloud Function에서 패스키 가입 옵션 요청
-                val requestData = mapOf("email" to email)
-                val reqResult = functions.getHttpsCallable("generateRegisterOptions").call(requestData).await()
-                val optionsMap = reqResult.data as? Map<*, *> ?: throw IllegalStateException("가입 옵션을 가져오지 못했습니다.")
-
-                // Gson을 사용하여 안전하게 Map을 완벽한 JSON 문자열로 변환
-                val requestJson = gson.toJson(optionsMap)
-
-                val challenge = extractChallenge(optionsMap, requestJson)
-
-                // 2. CredentialManager로 Passkey 생성
-                val credentialManager = CredentialManager.create(activity)
-                val createPublicKeyCredentialRequest = CreatePublicKeyCredentialRequest(requestJson)
-                val createResult = credentialManager.createCredential(
-                    context = activity,
-                    request = createPublicKeyCredentialRequest
-                )
-
-                val registrationResponseJson = when (createResult) {
-                    is CreatePublicKeyCredentialResponse -> createResult.registrationResponseJson
-                    else -> throw IllegalStateException("패스키 응답을 처리할 수 없습니다.")
-                }
-
-                // 3. Cloud Function에 패스키 가입 검증 요청
-                val verifyData = mapOf(
-                    "email" to email,
-                    "registrationResponse" to registrationResponseJson
-                )
-
-                val dataMap = completePasskeyRegistration(normalizedEmail, registrationResponseJson, challenge)
-                val registerToken = (dataMap?.get("customToken") ?: dataMap?.get("token")) as? String
-
-
-                _events.emit(AuthEvent.Message("Passkey registered successfully! ${registerToken}"))
-
-                /*
                 logCredentialContext(activity, normalizedEmail, "register")
                 Log.i(TAG, "Starting passkey registration for email: $normalizedEmail")
 
@@ -419,7 +353,8 @@ class AuthViewModel @Inject constructor(
                     .await()
 
                 val optionsMap = requestResult.data as? Map<*, *>
-                val optionsJson = if (optionsMap != null) mapToJsonString(optionsMap) else requestResult.data.toString()
+                val rawOptionsJson = if (optionsMap != null) mapToJsonString(optionsMap) else requestResult.data.toString()
+                val optionsJson = sanitizeAuthOptionsJson(rawOptionsJson)
                 val challenge = extractChallenge(optionsMap, optionsJson)
 
                 val credentialManager = CredentialManager.create(activity)
@@ -436,6 +371,7 @@ class AuthViewModel @Inject constructor(
                     Log.e(TAG, "createCredential failed: ${t.javaClass.name}, message=${t.message}", t)
                     throw t
                 }
+
                 if (createResponse is CreatePublicKeyCredentialResponse) {
                     val registrationResponseJson = createResponse.registrationResponseJson
                     Log.i(
@@ -444,12 +380,8 @@ class AuthViewModel @Inject constructor(
                     )
 
                     val dataMap = completePasskeyRegistration(normalizedEmail, registrationResponseJson, challenge)
-                    Log.i(
-                        TAG,
-                        "verifyRegister completed for $normalizedEmail. verified=${dataMap?.get("verified")}, hasCustomToken=${dataMap?.containsKey("customToken") == true}"
-                    )
-
                     val registerToken = (dataMap?.get("customToken") ?: dataMap?.get("token")) as? String
+
                     if (!registerToken.isNullOrBlank()) {
                         auth.signInWithCustomToken(registerToken).await()
                         _events.emit(AuthEvent.Success)
@@ -460,8 +392,6 @@ class AuthViewModel @Inject constructor(
                 } else {
                     _events.emit(AuthEvent.Error("Passkey registration failed"))
                 }
-
-                 */
             } catch (e: CreateCredentialException) {
                 Log.w(TAG, "CreateCredentialException type=${e.type}, message=${e.message}", e)
                 if (e.type.contains("CANCELED", ignoreCase = true) || e.message?.contains("canceled", ignoreCase = true) == true) {

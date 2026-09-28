@@ -30,6 +30,10 @@
             </intent-filter>
         </activity>
 
+        <meta-data
+            android:name="asset_statements"
+            android:resource="@string/asset_statements" />
+
         <activity
             android:name="com.example.offlinegpt.HiltTestActivity"
             android:exported="false" />
