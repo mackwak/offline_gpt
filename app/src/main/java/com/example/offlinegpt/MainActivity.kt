@@ -13,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +32,9 @@ import com.example.offlinegpt.ui.mbti.MbtiHistoryScreen
 import com.example.offlinegpt.ui.mbti.MbtiViewModel
 import com.example.offlinegpt.ui.calculator.CalculatorScreen
 import com.example.offlinegpt.ui.compass.CompassScreen
+import com.example.offlinegpt.ui.diary.DiaryScreen
+import com.example.offlinegpt.ui.weather.WeatherScreen
+import com.example.offlinegpt.ui.places.NearbyPlacesScreen
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -154,6 +156,21 @@ class MainActivity : ComponentActivity() {
                             onBack = { navController.popBackStack() }
                         )
                     }
+                    composable("diary") {
+                        DiaryScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("weather") {
+                        WeatherScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("nearby_places") {
+                        NearbyPlacesScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
                 }
             }
         }
@@ -214,6 +231,10 @@ fun HomeScreen(
             }
         }
 
+        Button(onClick = onNavigateToCalculator, modifier = Modifier.fillMaxWidth()) {
+            Text("Calculator")
+        }
+
         Button(onClick = onNavigateToCompass, modifier = Modifier.fillMaxWidth()) {
             Text("Compass")
         }
@@ -229,8 +250,6 @@ fun HomeScreen(
         Button(onClick = onNavigateToNearbyPlaces, modifier = Modifier.fillMaxWidth()) {
             Text("Search Nearby Favorite Shop/Place")
         }
-
-
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onNavigateToMbti, modifier = Modifier.weight(1f)) {
