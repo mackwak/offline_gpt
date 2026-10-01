@@ -13,37 +13,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-data class ForecastItem(
-    val day: String,
-    val condition: String,
-    val icon: String,
-    val tempHigh: String,
-    val tempLow: String
-)
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeatherScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: WeatherViewModel = hiltViewModel()
 ) {
-    var isRefreshing by remember { mutableStateOf(false) }
-
-    val currentTemp = "22°C"
-    val condition = "Partly Cloudy"
-    val location = "Current Location"
-    val humidity = "65%"
-    val wind = "12 km/h"
-
-    val weeklyForecast = listOf(
-        ForecastItem("Today", "Partly Cloudy", "⛅", "22°", "14°"),
-        ForecastItem("Tomorrow", "Sunny", "☀️", "25°", "15°"),
-        ForecastItem("Wed", "Rain Showers", "🌧️", "18°", "12°"),
-        ForecastItem("Thu", "Thunderstorm", "🌩️", "16°", "10°"),
-        ForecastItem("Fri", "Clear", "☀️", "21°", "13°"),
-        ForecastItem("Sat", "Cloudy", "☁️", "19°", "11°"),
-        ForecastItem("Sun", "Sunny", "☀️", "24°", "14°")
-    )
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -55,103 +33,143 @@ fun WeatherScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { isRefreshing = !isRefreshing }) {
+                    IconButton(onClick = { viewModel.fetchWeather() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 }
             )
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(16.dp)
         ) {
-            // Current Weather Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = location,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = "⛅",
-                        fontSize = 54.sp
-                    )
-                    Text(
-                        text = currentTemp,
-                        style = MaterialTheme.typography.displayLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = condition,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+            when (val state = uiState) {
+                is WeatherUiState.Loading -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Humidity", style = MaterialTheme.typography.labelMedium)
-                            Text(humidity, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Wind", style = MaterialTheme.typography.labelMedium)
-                            Text(wind, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Fetching location & weather forecast...")
+                    }
+                }
+                is WeatherUiState.Error -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = state.message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { viewModel.fetchWeather() }) {
+                            Text("Retry")
                         }
                     }
                 }
-            }
-
-            // Forecast Section
-            Text(
-                text = "7-Day Forecast",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(weeklyForecast) { item ->
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                is WeatherUiState.Success -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            )
                         ) {
-                            Text(item.day, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                            Text(item.icon, fontSize = 28.sp)
-                            Text(item.condition, style = MaterialTheme.typography.bodySmall)
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(item.tempHigh, fontWeight = FontWeight.Bold)
-                                Text(item.tempLow, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = state.city,
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = state.locationName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                )
+                                Text(
+                                    text = state.icon,
+                                    fontSize = 54.sp
+                                )
+                                Text(
+                                    text = state.currentTemp,
+                                    style = MaterialTheme.typography.displayLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = state.condition,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("Humidity", style = MaterialTheme.typography.labelMedium)
+                                        Text(state.humidity, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                    }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("Wind", style = MaterialTheme.typography.labelMedium)
+                                        Text(state.windSpeed, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "7-Day Forecast",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(state.forecastList) { item ->
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(item.day, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                                        Text(item.icon, fontSize = 28.sp)
+                                        Text(item.condition, style = MaterialTheme.typography.bodySmall)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(item.tempHigh, fontWeight = FontWeight.Bold)
+                                            Text(item.tempLow, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
