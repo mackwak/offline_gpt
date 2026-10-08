@@ -39,6 +39,10 @@ class NearbyPlacesViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
+    private companion object {
+        const val DEFAULT_PLACES_API_KEY = "AIzaSyAQmeB6_St_i76_4zpLBKOP5EWaWIl2hnY"
+    }
+
     private val _uiState = MutableStateFlow<PlacesUiState>(PlacesUiState.Loading)
     val uiState: StateFlow<PlacesUiState> = _uiState.asStateFlow()
 
@@ -84,10 +88,11 @@ class NearbyPlacesViewModel @Inject constructor(
                 val userLocation = locationProvider.getCurrentLocation()
                 val lat = userLocation?.latitude ?: 37.7749
                 val lon = userLocation?.longitude ?: -122.4194
+                val activeKey = apiKey ?: DEFAULT_PLACES_API_KEY
 
                 withContext(Dispatchers.IO) {
-                    val placesList = if (!apiKey.isNullOrBlank()) {
-                        fetchFromGooglePlacesApi(lat, lon, apiKey, userLocation)
+                    val placesList = if (activeKey.isNotBlank()) {
+                        fetchFromGooglePlacesApi(lat, lon, activeKey, userLocation)
                     } else {
                         fetchFromNearbyPlacesApi(lat, lon, userLocation)
                     }
@@ -126,13 +131,13 @@ class NearbyPlacesViewModel @Inject constructor(
     }
 
     private fun fetchFromGooglePlacesApi(lat: Double, lon: Double, apiKey: String, userLocation: Location?): List<PlaceItem> {
-        val urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lon&radius=1500&type=restaurant&key=$apiKey"
+        val urlString = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lon&radius=2000&type=restaurant&key=$apiKey"
         val responseText = URL(urlString).readText()
         val json = JSONObject(responseText)
-        val results = json.optJSONArray("results") ?: return getFallbackPlaces()
+        val results = json.optJSONArray("results") ?: return fetchFromNearbyPlacesApi(lat, lon, userLocation)
 
         val list = mutableListOf<PlaceItem>()
-        for (i in 0 until results.length().coerceAtMost(10)) {
+        for (i in 0 until results.length().coerceAtMost(15)) {
             val item = results.getJSONObject(i)
             val id = item.optString("place_id", i.toString())
             val name = item.optString("name", "Local Spot")
@@ -158,7 +163,7 @@ class NearbyPlacesViewModel @Inject constructor(
                 )
             )
         }
-        return if (list.isNotEmpty()) list else getFallbackPlaces()
+        return if (list.isNotEmpty()) list else fetchFromNearbyPlacesApi(lat, lon, userLocation)
     }
 
     private fun fetchFromNearbyPlacesApi(lat: Double, lon: Double, userLocation: Location?): List<PlaceItem> {
@@ -170,7 +175,7 @@ class NearbyPlacesViewModel @Inject constructor(
             val elements = json.optJSONArray("elements") ?: return getFallbackPlaces()
 
             val list = mutableListOf<PlaceItem>()
-            for (i in 0 until elements.length().coerceAtMost(10)) {
+            for (i in 0 until elements.length().coerceAtMost(12)) {
                 val item = elements.getJSONObject(i)
                 val id = item.optLong("id", i.toLong()).toString()
                 val tags = item.optJSONObject("tags")
@@ -232,13 +237,13 @@ class NearbyPlacesViewModel @Inject constructor(
     }
 
     private fun getFallbackPlaces(): List<PlaceItem> {
-        return listOf(/*
+        return listOf(
             PlaceItem("1", "Blue Bottle Coffee", "Cafe", 4.7, "250m", "123 Main St", favoritesSet.contains("1")),
             PlaceItem("2", "Gourmet Burger Kitchen", "Restaurant", 4.5, "450m", "45 Park Ave", favoritesSet.contains("2")),
             PlaceItem("3", "Artisan Bakery & Pastry", "Bakery", 4.8, "600m", "78 Baker St", favoritesSet.contains("3")),
             PlaceItem("4", "Central Community Park", "Park", 4.6, "800m", "200 Green Way", favoritesSet.contains("4")),
             PlaceItem("5", "Espresso Express Cafe", "Cafe", 4.3, "300m", "15 High St", favoritesSet.contains("5")),
             PlaceItem("6", "Tokyo Ramen House", "Restaurant", 4.9, "950m", "89 Noodle Lane", favoritesSet.contains("6"))
-       */ )
+        )
     }
 }
