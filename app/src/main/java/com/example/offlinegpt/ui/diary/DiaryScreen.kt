@@ -2,6 +2,7 @@ package com.example.offlinegpt.ui.diary
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,7 +29,22 @@ fun DiaryScreen(
     var selectedMood by remember { mutableStateOf("😊 Happy") }
     val entries by viewModel.entries.collectAsState()
 
-    val moods = listOf("😊 Happy", "😌 Calm", "🤔 Thoughtful", "⚡ Energetic", "😢 Sad")
+    val moods = listOf(
+        "😊 Happy",
+        "😌 Calm",
+        "🤔 Thoughtful",
+        "⚡ Energetic",
+        "🥱 Tired",
+        "😢 Sad",
+        "😰 Anxious",
+        "🙏 Grateful",
+        "🤩 Excited",
+        "🕊️ Peaceful",
+        "😡 Angry",
+        "🤒 Sick",
+        "🥰 Loved",
+        "😕 Confused"
+    )
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
     Scaffold(
@@ -65,11 +81,11 @@ fun DiaryScreen(
             )
 
             Text("Mood", style = MaterialTheme.typography.labelMedium)
-            Row(
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                moods.forEach { mood ->
+                items(moods) { mood ->
                     FilterChip(
                         selected = selectedMood == mood,
                         onClick = { selectedMood = mood },

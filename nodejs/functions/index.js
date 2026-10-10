@@ -16,10 +16,9 @@ const auth = getAuth();
 
 // 설정
 const rpName = 'OfflineGPT';
-const rpID = 'offlinegpt-dev.web.app';1` `
+//const rpID = 'offlinegpt-dev.web.app';
+const rpID = 'offlinegpt-5e735.web.app';
 
-// 안드로이드 디버그 빌드 서명 해시가 적용된 오리진
-//const expectedOrigin = 'android:apk-key-hash:KNLgEk0CUg8ZaHzApFUKhVOgxP5IYlFF-JbVJ1E0S3U'; //debub
 const expectedOrigin = 'android:apk-key-hash:gK8G8CbpFLbRvSfe2OvKkyvd9QcgP5cuRoRIiXGAolg'; // release
 
 const getErrorMessage = (error) => {

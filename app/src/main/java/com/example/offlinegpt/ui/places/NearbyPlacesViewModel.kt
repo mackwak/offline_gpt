@@ -298,6 +298,8 @@ class NearbyPlacesViewModel @Inject constructor(
                 "X-Goog-FieldMask",
                 "places.id,places.displayName,places.primaryType,places.rating,places.formattedAddress,places.location"
             )
+            conn.setRequestProperty("X-Android-Cert", "37769772F689AEB9C03018A23636E493C2F1D60E")
+            conn.setRequestProperty("X-Android-Package", context.packageName)
             conn.doOutput = true
 
             val requestBody = JSONObject().apply {
@@ -444,13 +446,6 @@ class NearbyPlacesViewModel @Inject constructor(
     }
 
     private fun getFallbackPlaces(baseLat: Double = 37.7749, baseLon: Double = -122.4194): List<PlaceItem> {
-        return listOf(
-            PlaceItem("1", "Blue Bottle Coffee", "Cafe", 4.7, "250m", "123 Main St", baseLat + 0.002, baseLon + 0.002, favoritesSet.contains("1")),
-            PlaceItem("2", "Gourmet Burger Kitchen", "Restaurant", 4.5, "450m", "45 Park Ave", baseLat - 0.003, baseLon + 0.001, favoritesSet.contains("2")),
-            PlaceItem("3", "Artisan Bakery & Pastry", "Bakery", 4.8, "600m", "78 Baker St", baseLat + 0.004, baseLon - 0.002, favoritesSet.contains("3")),
-            PlaceItem("4", "Central Community Park", "Park", 4.6, "800m", "200 Green Way", baseLat - 0.002, baseLon - 0.004, favoritesSet.contains("4")),
-            PlaceItem("5", "Espresso Express Cafe", "Cafe", 4.3, "300m", "15 High St", baseLat + 0.001, baseLon - 0.003, favoritesSet.contains("5")),
-            PlaceItem("6", "Tokyo Ramen House", "Restaurant", 4.9, "950m", "89 Noodle Lane", baseLat - 0.004, baseLon + 0.003, favoritesSet.contains("6"))
-        )
+        return listOf()
     }
 }

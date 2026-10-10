@@ -54,8 +54,6 @@ fun LoginScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(text = viewModel.appName, style = MaterialTheme.typography.headlineLarge)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Login", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(32.dp))
         OutlinedTextField(
             value = viewModel.email,

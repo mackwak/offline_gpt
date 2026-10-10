@@ -28,7 +28,7 @@ fun MbtiHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("MBTI 진단 기록") },
+                title = { Text("MBTI History") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -42,7 +42,7 @@ fun MbtiHistoryScreen(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                Text("진단 기록이 없습니다.")
+                Text("No history available.")
             }
         } else {
             LazyColumn(

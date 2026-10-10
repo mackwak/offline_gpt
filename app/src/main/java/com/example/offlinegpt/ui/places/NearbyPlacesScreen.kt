@@ -43,6 +43,7 @@ enum class PlacesViewMode {
 @Composable
 fun NearbyPlacesScreen(
     onBack: () -> Unit,
+    isFavorite: Boolean = false,
     viewModel: NearbyPlacesViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -66,6 +67,9 @@ fun NearbyPlacesScreen(
     // Safely initialize Google Maps Native SDK
     LaunchedEffect(context) {
         runCatching {
+            if (isFavorite) {
+                viewModel.toggleGlobalFavoritesFilter()
+            }
             MapsInitializer.initialize(context)
         }.onFailure {
             Log.e("NearbyPlacesScreen", "MapsInitializer error", it)
@@ -81,19 +85,20 @@ fun NearbyPlacesScreen(
         }.onFailure {
             cameraPositionState.position = CameraPosition.fromLatLngZoom(LatLng(currentLat, currentLon), 14f)
         }
+
+
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nearby Favorite Places") },
+                title = { Text(if (isFavorite) "Favorites" else "Nearby Spots") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                actions = {
-                    // Global Favorites Toggle Button
+                actions = {/*
                     FilterChip(
                         selected = isFavoritesOnly,
                         onClick = { viewModel.toggleGlobalFavoritesFilter() },
@@ -106,7 +111,7 @@ fun NearbyPlacesScreen(
                             )
                         }
                     )
-
+*/
                     Spacer(modifier = Modifier.width(4.dp))
 
                     // View Mode Switcher (List vs Map)
@@ -131,78 +136,80 @@ fun NearbyPlacesScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Address / Location Search Bar with X Clear Icon & Search Button
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = locationQuery,
-                            onValueChange = { viewModel.onLocationQueryChanged(it) },
-                            label = { Text("Search City / Address (3+ chars)") },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                            trailingIcon = {
-                                if (locationQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.clearLocationQuery() }) {
-                                        Icon(Icons.Default.Clear, contentDescription = "Clear Address")
-                                    }
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
-
-                        Button(
-                            onClick = { viewModel.searchLocationAddress() },
-                            modifier = Modifier.height(56.dp)
+            if (!isFavorite) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Search")
+                            OutlinedTextField(
+                                value = locationQuery,
+                                onValueChange = { viewModel.onLocationQueryChanged(it) },
+                                label = { Text("Search City / Address (3+ chars)") },
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                trailingIcon = {
+                                    if (locationQuery.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.clearLocationQuery() }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "Clear Address")
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+
+                            Button(
+                                onClick = { viewModel.searchLocationAddress() },
+                                modifier = Modifier.height(56.dp)
+                            ) {
+                                Text("Search")
+                            }
                         }
-                    }
 
-                    // Candidate Address Dropdown List when 3+ characters are typed
-                    if (addressCandidates.isNotEmpty()) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(4.dp)) {
-                                addressCandidates.forEach { candidate ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { viewModel.selectCandidateAddress(candidate) }
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.LocationOn,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Text(
-                                            text = candidate.fullAddress,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium
-                                        )
+                        // Candidate Address Dropdown List when 3+ characters are typed
+                        if (addressCandidates.isNotEmpty()) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(4.dp)) {
+                                    addressCandidates.forEach { candidate ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { viewModel.selectCandidateAddress(candidate) }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.LocationOn,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Text(
+                                                text = candidate.fullAddress,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
                                     }
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
                                 }
                             }
                         }
                     }
                 }
             }
+
 
             // Categories Filter Bar
             LazyRow(
@@ -361,7 +368,7 @@ fun NearbyPlacesScreen(
                     } else {
                         // List View
                         Text(
-                            text = "Nearby Spots (${state.places.size})",
+                            text = if (isFavorite) "Favorites (${state.places.size})" else "Nearby Spots (${state.places.size})",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -374,7 +381,7 @@ fun NearbyPlacesScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    "No places found matching search/location.",
+                                    if (isFavorite) "No favorite places found." else "No nearby spots found.",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }

@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(
                     navController = navController,
-                    startDestination = startDestination,
+                    startDestination = "compass",
                     modifier = Modifier.fillMaxSize()
                 ) {
                     composable("login") {
@@ -136,7 +136,8 @@ class MainActivity : ComponentActivity() {
                         MbtiScreen(
                             viewModel = mbtiViewModel,
                             onFinished = { navController.popBackStack() },
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.popBackStack() },
+                            onNavigateToHistory = { navController.navigate("mbti_history") }
                         )
                     }
                     composable("mbti_history") {
@@ -153,7 +154,12 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("compass") {
                         CompassScreen(
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.popBackStack() },
+                            onNavigateToLogin = { navController.navigate("login") },
+                            onNavigateToMbti = { navController.navigate("mbti") },
+                            onNavigateToDiary = { navController.navigate("diary") },
+                            onNavigateToFavorites = { navController.navigate("favorites") },
+                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") }
                         )
                     }
                     composable("diary") {
@@ -170,6 +176,15 @@ class MainActivity : ComponentActivity() {
                         NearbyPlacesScreen(
                             onBack = { navController.popBackStack() }
                         )
+                    }
+
+                    composable(
+                        route = "favorites",
+                    ) {
+                        NearbyPlacesScreen(
+                        onBack = { navController.popBackStack() }, isFavorite = true
+                    )
+
                     }
                 }
             }

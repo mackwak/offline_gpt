@@ -10,8 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,62 +20,135 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.offlinegpt.ui.auth.AuthViewModel
 import com.example.offlinegpt.ui.chat.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CompassScreen(
-    onBack: () -> Unit,
+    onBack: () -> Unit = {},
+    onNavigateToLogin: () -> Unit = {},
+    onNavigateToMbti: () -> Unit = {},
+    onNavigateToDiary: () -> Unit = {},
+    onNavigateToFavorites: () -> Unit = {},
+    onNavigateToNearbyPlaces: () -> Unit = {},
     chatViewModel: ChatViewModel = hiltViewModel(),
-    viewModel: CompassViewModel = hiltViewModel()
+    viewModel: CompassViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val azimuth by viewModel.azimuth.collectAsState()
     val sunAzimuth by viewModel.sunAzimuth.collectAsState()
+    val isShowMenuDialog by viewModel.isShowMenuDialog.collectAsState()
     val aiLocationInfo by chatViewModel.aiLocationInfo.collectAsState()
     val isDownloading by chatViewModel.isDownloading.collectAsState()
     val downloadProgress by chatViewModel.downloadProgress.collectAsState()
-    var normalizedAzimuth2 = remember { mutableStateOf(0f) }
+    val normalizedAzimuth2 = remember { mutableFloatStateOf(0f) }
     val directionShort = remember { mutableStateOf("N") }
     val animatedAzimuth by animateFloatAsState(targetValue = -azimuth, label = "Compass Rotation")
     val errorMessage = chatViewModel.errorMessage.collectAsState(null)
     val modelReady = chatViewModel.isModelReady.collectAsState(false)
-    // Remove unused downloadProgress collection if it was there
-    // val downloadProgress = chatViewModel.downloadProgress.collectAsState()
+
+    LaunchedEffect(Unit) {
+        chatViewModel.validateModel()
+    }
+
+    if (isShowMenuDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissMenuDialog() },
+            title = { Text("Logged in as ${authViewModel.userEmail}", fontSize = 14.sp) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Button(
+                        onClick = {
+                            viewModel.dismissMenuDialog()
+                            onNavigateToMbti()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("MBTI Diagnostic")
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.dismissMenuDialog()
+                            onNavigateToDiary()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Daily Diary")
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.dismissMenuDialog()
+                            onNavigateToFavorites()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Favorites")
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.dismissMenuDialog()
+                            authViewModel.onLogoutClick()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Logout")
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissMenuDialog() }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AI Compass Assistant", color = Color.White) },
+                title = { Text("AI Compass", color = Color.White) },
                 navigationIcon = {
-                    /*
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack, 
-                            contentDescription = "Back",
-                            tint = Color.White
-                        )
-                    }
-                    */
                 },
                 actions = {
 
                     if (modelReady.value) {
-                        TextButton(onClick = { chatViewModel.askWhereAmI(  "" + normalizedAzimuth2.value + " " + directionShort.value + " in L29 APT balcony with 180 view only. Just give me the gist. Where is the sun relative to where I’m standing, whether visible or not?") }) {
-                            Text("Where am I?", color = Color.White)
+                        if (authViewModel.isLoggedIn) {
+                            IconButton(onClick = {
+                                viewModel.showMenuDialog()
+                            }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+                            }
+                        } else {
+                            TextButton(onClick = onNavigateToLogin) {
+                                Text("Login", color = Color.White)
+                            }
                         }
-                    } else if (!isDownloading) {
-                        TextButton(onClick = { chatViewModel.downloadGemma4Model() }) {
-                            Text("Download Model", color = Color.White)
-                        }
-                    } else if (isDownloading) {
-                        TextButton(onClick = { chatViewModel.stopDownloading() }) {
-                            Text("Stop downloading", color = Color.White)
+                    } else {
+                        if (!chatViewModel.checkIfGemmaModelExist() && !modelReady.value && !isDownloading) {
+                            TextButton(onClick = { chatViewModel.downloadGemma4Model() }) {
+                                Text("Download Model", color = Color.White)
+                            }
+                        } else if (isDownloading) {
+                            TextButton(onClick = { chatViewModel.stopDownloading() }) {
+                                Text("Stop downloading", color = Color.White)
+                            }
                         }
                     }
-               },
+
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFF121212),
                     titleContentColor = Color.White
@@ -98,7 +170,8 @@ fun CompassScreen(
             ) {
                 if (isDownloading) {
                     Column(
-                        modifier = Modifier.padding(bottom = 50.dp)
+                        modifier = Modifier
+                            .padding(bottom = 50.dp)
                             .fillMaxWidth()
                             .padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -149,7 +222,7 @@ fun CompassScreen(
                 }
 
                 val normalizedAzimuth = (azimuth + 360) % 360
-                normalizedAzimuth2.value = normalizedAzimuth
+                normalizedAzimuth2.floatValue = normalizedAzimuth
                 directionShort.value = when {
                     normalizedAzimuth >= 337.5 || normalizedAzimuth < 22.5 -> "N"
                     normalizedAzimuth >= 22.5 && normalizedAzimuth < 67.5 -> "NE"
@@ -176,7 +249,7 @@ fun CompassScreen(
                             radius = dialRadius,
                             center = center
                         )
-                        
+
                         // Degree markings
                         val degreeTextPaint = Paint().apply {
                             color = android.graphics.Color.LTGRAY
@@ -237,13 +310,13 @@ fun CompassScreen(
                             val dist = dialRadius - 55.dp.toPx()
                             val x = (center.x + dist * Math.cos(angle)).toFloat()
                             val y = (center.y + dist * Math.sin(angle)).toFloat()
-                            
+
                             val paint = when(label) {
                                 "N" -> northPaint
                                 "NE", "NW", "SE", "SW" -> interCardinalPaint
                                 else -> cardinalPaint
                             }
-                            
+
                             drawContext.canvas.nativeCanvas.drawText(label, x, y + 8.dp.toPx(), paint)
                         }
 
@@ -262,7 +335,7 @@ fun CompassScreen(
                                 (center.x + innerCircleRadius * Math.cos(angle + 0.2)).toFloat(),
                                 (center.y + innerCircleRadius * Math.sin(angle + 0.2)).toFloat()
                             )
-                            
+
                             drawPath(
                                 Path().apply {
                                     moveTo(center.x, center.y)
@@ -282,7 +355,7 @@ fun CompassScreen(
                                 color = Color.Gray.copy(alpha = 0.5f)
                             )
                         }
-                        
+
                         // Sun position
                         rotate(degrees = sunAzimuth, pivot = center) {
                             drawCircle(
@@ -294,7 +367,7 @@ fun CompassScreen(
                     }
 
                     // 2. Fixed Elements (Top Indicator & Center Display)
-                    
+
                     // Top white lubber line
                     drawLine(
                         color = Color.White,
@@ -347,6 +420,25 @@ fun CompassScreen(
                         subTextPaint
                     )
                 }
+
+                if (authViewModel.isLoggedIn) {
+                    Button(
+                        onClick = {
+                            onNavigateToNearbyPlaces()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFD32F2F) // Sets the actual red background color
+                        ),
+                        modifier = Modifier
+                            .padding(top = 24.dp)
+                            .fillMaxWidth(0.6f)
+                    ) {
+                        Text("Find a spot to relax")
+                    }
+
+                    Text("Your context powers on-device recommendations.", modifier = Modifier.padding(20.dp), textAlign = TextAlign.Center, color = Color.White)
+                }
+
             }
         }
     }

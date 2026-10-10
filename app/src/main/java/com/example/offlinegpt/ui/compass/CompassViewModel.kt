@@ -23,6 +23,17 @@ class CompassViewModel @Inject constructor(
             initialValue = 0f
         )
 
+    private val _isShowMenuDialog = MutableStateFlow(false)
+    val isShowMenuDialog: StateFlow<Boolean> = _isShowMenuDialog.asStateFlow()
+
+    fun showMenuDialog() {
+        _isShowMenuDialog.value = true
+    }
+
+    fun dismissMenuDialog() {
+        _isShowMenuDialog.value = false
+    }
+
     // Sun azimuth relative to North (0-360)
     // Defaulting to a central location if GPS is not used
     private val defaultLat = 37.7749
@@ -33,7 +44,7 @@ class CompassViewModel @Inject constructor(
             val location = locationProvider.getCurrentLocation()
             val lat = location?.latitude ?: defaultLat
             val lon = location?.longitude ?: defaultLon
-            
+
             val position = SolarCalculator.calculateSunPosition(lat, lon)
             emit(position.azimuth.toFloat())
             delay(60000) // Update sun position every minute
