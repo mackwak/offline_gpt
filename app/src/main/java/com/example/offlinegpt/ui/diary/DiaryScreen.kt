@@ -8,30 +8,25 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
-import java.util.*
-
-data class DiaryEntry(
-    val id: String = UUID.randomUUID().toString(),
-    val title: String,
-    val content: String,
-    val mood: String,
-    val timestamp: Long = System.currentTimeMillis()
-)
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiaryScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: DiaryViewModel = hiltViewModel()
 ) {
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var selectedMood by remember { mutableStateOf("😊 Happy") }
-    var entries by remember { mutableStateOf(listOf<DiaryEntry>()) }
+    val entries by viewModel.entries.collectAsState()
 
     val moods = listOf("😊 Happy", "😌 Calm", "🤔 Thoughtful", "⚡ Energetic", "😢 Sad")
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
@@ -96,12 +91,11 @@ fun DiaryScreen(
             Button(
                 onClick = {
                     if (title.isNotBlank() && content.isNotBlank()) {
-                        val newEntry = DiaryEntry(
+                        viewModel.addEntry(
                             title = title.trim(),
                             content = content.trim(),
                             mood = selectedMood
                         )
-                        entries = listOf(newEntry) + entries
                         title = ""
                         content = ""
                     }

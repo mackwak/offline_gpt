@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import com.example.offlinegpt.data.local.AppDatabase
 import com.example.offlinegpt.data.local.ChatDao
+import com.example.offlinegpt.data.local.DiaryDao
+import com.example.offlinegpt.data.local.FavoritePlaceDao
 import com.example.offlinegpt.data.local.MbtiDao
 import com.example.offlinegpt.data.local.RagDao
 import dagger.Module
@@ -40,5 +42,15 @@ object DatabaseModule {
     @Provides
     fun provideMbtiDao(database: AppDatabase): MbtiDao {
         return database.mbtiDao()
+    }
+
+    @Provides
+    fun provideFavoritePlaceDao(database: AppDatabase): FavoritePlaceDao {
+        return database.favoritePlaceDao()
+    }
+
+    @Provides
+    fun provideDiaryDao(database: AppDatabase): DiaryDao {
+        return database.diaryDao()
     }
 }

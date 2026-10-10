@@ -85,6 +85,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.pdfbox.android)
 
+    // Maps & Maps Compose
+    implementation(libs.play.services.maps)
+    implementation(libs.maps.compose)
+
     // LiteRT
     implementation(libs.litertlm.android)
     implementation(libs.tensorflow.lite.metadata)

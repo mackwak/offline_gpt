@@ -16,6 +16,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.OfflineGPT" >
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyAQmeB6_St_i76_4zpLBKOP5EWaWIl2hnY" />
+
         <activity
             android:name="com.example.offlinegpt.MainActivity"
             android:exported="true"
