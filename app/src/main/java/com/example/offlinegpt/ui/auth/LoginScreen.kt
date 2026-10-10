@@ -8,12 +8,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collectLatest
 
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.offlinegpt.R
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
 
 import androidx.compose.material.icons.Icons
@@ -53,6 +55,14 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+
+        Icon(
+            painter = painterResource(id = R.drawable.logo),
+            contentDescription = "App Logo",
+            modifier = Modifier.size(150.dp),
+            tint = Color.Unspecified
+        )
+        Spacer(modifier = Modifier.height(26.dp))
         Text(text = viewModel.appName, style = MaterialTheme.typography.headlineLarge)
         Spacer(modifier = Modifier.height(32.dp))
         OutlinedTextField(
