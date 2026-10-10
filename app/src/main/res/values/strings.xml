@@ -1,3 +1,8 @@
 <resources>
-    <string name="app_name">OfflineGPT</string>
+    <string name="app_name">AI Compass</string>
+    <string name="asset_statements" translatable="false">
+        [{
+            \"include\": \"https://offlinegpt-5e735.web.app/.well-known/assetlinks.json\"
+        }]
+    </string>
 </resources>

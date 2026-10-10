@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:257719802673:android:70d0e9bd66e5281d032e10",
+        "mobilesdk_app_id": "1:257719802673:android:f22faa732f7f745c032e10",
         "android_client_info": {
-          "package_name": "com.example.offlinegpt.dev"
+          "package_name": "compass.assistant.dev"
         }
       },
       "oauth_client": [],

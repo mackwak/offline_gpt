@@ -1,5 +1,6 @@
 package com.example.offlinegpt.ui.auth
 
+import android.app.Activity
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -7,13 +8,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collectLatest
 
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.offlinegpt.R
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
+
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
 
 @Composable
 fun LoginScreen(
@@ -22,11 +28,15 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
 
     LaunchedEffect(Unit) {
         viewModel.events.collectLatest { event ->
             when (event) {
                 is AuthViewModel.AuthEvent.Success -> onLoginSuccess()
+                is AuthViewModel.AuthEvent.Message -> {
+                    Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
+                }
                 is AuthViewModel.AuthEvent.Error -> {
                     Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
                 }
@@ -45,9 +55,15 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+
+        Icon(
+            painter = painterResource(id = R.drawable.logo),
+            contentDescription = "App Logo",
+            modifier = Modifier.size(150.dp),
+            tint = Color.Unspecified
+        )
+        Spacer(modifier = Modifier.height(26.dp))
         Text(text = viewModel.appName, style = MaterialTheme.typography.headlineLarge)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "Login", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(32.dp))
         OutlinedTextField(
             value = viewModel.email,
@@ -55,25 +71,25 @@ fun LoginScreen(
             label = { Text("Email") },
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = viewModel.password,
-            onValueChange = { viewModel.password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
         Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = { viewModel.onLoginClick() },
+        OutlinedButton(
+            onClick = {
+                if (activity != null) {
+                    viewModel.onPasskeyLoginClick(activity)
+                } else {
+                    Toast.makeText(context, "Passkey requires an Activity context", Toast.LENGTH_LONG).show()
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
             enabled = !viewModel.isLoading
         ) {
-            if (viewModel.isLoading) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
-            } else {
-                Text("Login")
-            }
+            Icon(
+                imageVector = Icons.Default.Fingerprint,
+                contentDescription = "Passkey Authentication",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Sign in with Passkey")
         }
         TextButton(onClick = onNavigateToSignup) {
             Text("Don't have an account? Sign up")

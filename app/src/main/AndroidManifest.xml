@@ -2,8 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools" >
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
-        android:name=".OfflineGPTApplication"
+        android:name="com.example.offlinegpt.OfflineGPTApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -12,10 +16,16 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.OfflineGPT" >
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyAQmeB6_St_i76_4zpLBKOP5EWaWIl2hnY" />
+
         <activity
-            android:name=".MainActivity"
+            android:name="com.example.offlinegpt.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:screenOrientation="portrait"
             android:theme="@style/Theme.OfflineGPT"
             android:windowSoftInputMode="adjustResize" >
             <intent-filter>
@@ -25,8 +35,12 @@
             </intent-filter>
         </activity>
 
+        <meta-data
+            android:name="asset_statements"
+            android:resource="@string/asset_statements" />
+
         <activity
-            android:name=".HiltTestActivity"
+            android:name="com.example.offlinegpt.HiltTestActivity"
             android:exported="false" />
     </application>
 

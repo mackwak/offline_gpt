@@ -13,6 +13,8 @@ class LiteRTLMEngine {
     private var engine: Engine? = null
     private var activeConversation: Conversation? = null
 
+    fun isInitialized(): Boolean = activeConversation != null
+
     /**
      * Initializes the LiteRT-LM runtime on an I/O thread.
      * @param modelPath Absolute file path to your .litertlm model file.

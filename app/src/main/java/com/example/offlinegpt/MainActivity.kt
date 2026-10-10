@@ -1,20 +1,22 @@
 package com.example.offlinegpt
 
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,6 +27,14 @@ import com.example.offlinegpt.ui.auth.SignupScreen
 import com.example.offlinegpt.ui.chat.ChatDetailScreen
 import com.example.offlinegpt.ui.chat.ChatListScreen
 import com.example.offlinegpt.ui.chat.ChatViewModel
+import com.example.offlinegpt.ui.mbti.MbtiScreen
+import com.example.offlinegpt.ui.mbti.MbtiHistoryScreen
+import com.example.offlinegpt.ui.mbti.MbtiViewModel
+import com.example.offlinegpt.ui.calculator.CalculatorScreen
+import com.example.offlinegpt.ui.compass.CompassScreen
+import com.example.offlinegpt.ui.diary.DiaryScreen
+import com.example.offlinegpt.ui.weather.WeatherScreen
+import com.example.offlinegpt.ui.places.NearbyPlacesScreen
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -39,23 +49,36 @@ class MainActivity : ComponentActivity() {
                 val authViewModel: AuthViewModel = hiltViewModel()
                 val startDestination = if (authViewModel.isLoggedIn) "home" else "login"
 
+                val locationPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestMultiplePermissions()
+                ) { }
+
+                LaunchedEffect(Unit) {
+                    locationPermissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                }
+
                 NavHost(
                     navController = navController,
-                    startDestination = startDestination,
+                    startDestination = "compass",
                     modifier = Modifier.fillMaxSize()
                 ) {
                     composable("login") {
                         LoginScreen(
                             viewModel = authViewModel,
                             onNavigateToSignup = { navController.navigate("signup") },
-                            onLoginSuccess = { navController.navigate("home") }
+                            onLoginSuccess = { navController.navigate("compass") }
                         )
                     }
                     composable("signup") {
                         SignupScreen(
                             viewModel = authViewModel,
                             onNavigateBack = { navController.popBackStack() },
-                            onSignupSuccess = { navController.navigate("home") }
+                            onSignupSuccess = { navController.navigate("compass") }
                         )
                     }
                     composable("home") {
@@ -70,7 +93,15 @@ class MainActivity : ComponentActivity() {
                         }
                         HomeScreen(
                             onLogout = { authViewModel.onLogoutClick() },
-                            onNavigateToChats = { navController.navigate("chat_list") }
+                            onNavigateToChats = { navController.navigate("chat_list") },
+                            onNavigateToRag = { navController.navigate("chat_rag") },
+                            onNavigateToMbti = { navController.navigate("mbti") },
+                            onNavigateToMbtiHistory = { navController.navigate("mbti_history") },
+                            onNavigateToCalculator = { navController.navigate("calculator") },
+                            onNavigateToCompass = { navController.navigate("compass") },
+                            onNavigateToDiary = { navController.navigate("diary") },
+                            onNavigateToWeather = { navController.navigate("weather") },
+                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") }
                         )
                     }
                     composable("chat_list") {
@@ -92,6 +123,69 @@ class MainActivity : ComponentActivity() {
                             onBack = { navController.popBackStack() }
                         )
                     }
+                    composable("chat_rag") {
+                        val chatViewModel: ChatViewModel = hiltViewModel()
+                        ChatDetailScreen(
+                            viewModel = chatViewModel,
+                            sessionId = -1,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("mbti") {
+                        val mbtiViewModel: MbtiViewModel = hiltViewModel()
+                        MbtiScreen(
+                            viewModel = mbtiViewModel,
+                            onFinished = { navController.popBackStack() },
+                            onBack = { navController.popBackStack() },
+                            onNavigateToHistory = { navController.navigate("mbti_history") }
+                        )
+                    }
+                    composable("mbti_history") {
+                        val mbtiViewModel: MbtiViewModel = hiltViewModel()
+                        MbtiHistoryScreen(
+                            viewModel = mbtiViewModel,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("calculator") {
+                        CalculatorScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("compass") {
+                        CompassScreen(
+                            onBack = { navController.popBackStack() },
+                            onNavigateToLogin = { navController.navigate("login") },
+                            onNavigateToMbti = { navController.navigate("mbti") },
+                            onNavigateToDiary = { navController.navigate("diary") },
+                            onNavigateToFavorites = { navController.navigate("favorites") },
+                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") }
+                        )
+                    }
+                    composable("diary") {
+                        DiaryScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("weather") {
+                        WeatherScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("nearby_places") {
+                        NearbyPlacesScreen(
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+
+                    composable(
+                        route = "favorites",
+                    ) {
+                        NearbyPlacesScreen(
+                        onBack = { navController.popBackStack() }, isFavorite = true
+                    )
+
+                    }
                 }
             }
         }
@@ -99,38 +193,95 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun HomeScreen(onLogout: () -> Unit, onNavigateToChats: () -> Unit) {
+fun HomeScreen(
+    onLogout: () -> Unit,
+    onNavigateToChats: () -> Unit,
+    onNavigateToRag: () -> Unit,
+    onNavigateToMbti: () -> Unit,
+    onNavigateToMbtiHistory: () -> Unit,
+    onNavigateToCalculator: () -> Unit,
+    onNavigateToCompass: () -> Unit,
+    onNavigateToDiary: () -> Unit = {},
+    onNavigateToWeather: () -> Unit = {},
+    onNavigateToNearbyPlaces: () -> Unit = {},
+    authViewModel: AuthViewModel = hiltViewModel()
+) {
     val chatViewModel: ChatViewModel = hiltViewModel()
-    val errorMessage = chatViewModel.currentStreamingText.collectAsState(null)
+    val userEmail = authViewModel.userEmail
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .systemBarsPadding()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Welcome to OfflineGPT!")
-
-        if (!chatViewModel.checkIfEmbeddingFileExist()) {
-            Button(onClick = { chatViewModel.downloadModelFile() }) {
-                Text("Download Embedding Model")
-            }
+        Text(text = "Welcome to ${authViewModel.appName}!", style = MaterialTheme.typography.headlineMedium)
+        if (!userEmail.isNullOrBlank()) {
+            Text(
+                text = "Logged in as: $userEmail",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
-        if (!chatViewModel.checkIfFileExist()) {
-            Button(onClick = { chatViewModel.downloadGemma4Model() }) {
+        if (chatViewModel.checkIfGemmaModelExist()) {
+            Button(onClick = onNavigateToChats, modifier = Modifier.fillMaxWidth()) {
+                Text("GPT Chats")
+            }
+        } else {
+            Button(onClick = { chatViewModel.downloadGemma4Model() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Download Gemma 4 Model")
             }
         }
 
-        if (chatViewModel.checkIfFileExist() && chatViewModel.checkIfEmbeddingFileExist()) {
-            Button(onClick = onNavigateToChats) {
-                Text("My Chats")
+        if (chatViewModel.checkIfEmbeddingFileExist()) {
+            Button(onClick = onNavigateToRag, modifier = Modifier.fillMaxWidth()) {
+                Text("RAG Chats")
+            }
+        } else {
+            Button(onClick = { chatViewModel.downloadModelFile() }, modifier = Modifier.fillMaxWidth()) {
+                Text("Download Embedding Model")
             }
         }
 
-        errorMessage.value?.let {
-            Text("${it}")
+        Button(onClick = onNavigateToCalculator, modifier = Modifier.fillMaxWidth()) {
+            Text("Calculator")
         }
 
-        Button(onClick = onLogout) {
+        Button(onClick = onNavigateToCompass, modifier = Modifier.fillMaxWidth()) {
+            Text("Compass")
+        }
+
+        Button(onClick = onNavigateToDiary, modifier = Modifier.fillMaxWidth()) {
+            Text("Diary")
+        }
+
+        Button(onClick = onNavigateToWeather, modifier = Modifier.fillMaxWidth()) {
+            Text("Weather Forecast")
+        }
+
+        Button(onClick = onNavigateToNearbyPlaces, modifier = Modifier.fillMaxWidth()) {
+            Text("Search Nearby Favorite Shop/Place")
+        }
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onNavigateToMbti, modifier = Modifier.weight(1f)) {
+                Text("MBTI 진단")
+            }
+            OutlinedButton(onClick = onNavigateToMbtiHistory, modifier = Modifier.weight(1f)) {
+                Text("진단 기록")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+        ) {
             Text("Logout")
         }
     }
