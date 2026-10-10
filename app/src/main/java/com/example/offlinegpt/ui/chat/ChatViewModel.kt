@@ -191,6 +191,7 @@ class ChatViewModel @Inject constructor(
             return null
         }
 
+
         val fileName = "gemma-4-E2B-it.litertlm"
 
         val modelUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/$fileName"
@@ -200,7 +201,7 @@ class ChatViewModel @Inject constructor(
             .setDescription("Downloading on-device AI weights...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-            .setAllowedOverMetered(false)
+             .setAllowedOverMetered(false)
             .setAllowedOverRoaming(false)
 
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -512,7 +513,21 @@ class ChatViewModel @Inject constructor(
                 _currentStreamingText.value = ""
 
                 withContext(Dispatchers.Default) {
-                    liteRTLMEngine.sendMessageStream(content)
+                    
+                    // use Rag searchSimilarContexts
+                    val relevantContexts = ragRepository.searchSimilarContexts(content)
+
+                    val augmentedPrompt = if (relevantContexts.isNotEmpty()) {
+                        "Context:\n" + messages.value.filter { it.isUser }.map { it.content }.toString() + "\n" +
+                        relevantContexts.joinToString("\n") + 
+                        "\n\nQuestion: $content"
+                    } else {
+                        content
+                    }
+
+                    Log.d("ChatViewModel", "Augmented prompt: $augmentedPrompt")
+
+                    liteRTLMEngine.sendMessageStream(augmentedPrompt)
                         .catch { error ->
                             _currentStreamingText.value = "Error: ${error.localizedMessage}"
                         }
