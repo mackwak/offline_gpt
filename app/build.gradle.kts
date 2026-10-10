@@ -14,7 +14,7 @@ android {
         applicationId = "compass.assistant"
         minSdk = 25
         targetSdk = 37
-        versionCode = 12
+        versionCode = 13
         versionName = "1.0"
 
         testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"
