@@ -71,14 +71,14 @@ class MainActivity : ComponentActivity() {
                         LoginScreen(
                             viewModel = authViewModel,
                             onNavigateToSignup = { navController.navigate("signup") },
-                            onLoginSuccess = { navController.navigate("home") }
+                            onLoginSuccess = { navController.navigate("compass") }
                         )
                     }
                     composable("signup") {
                         SignupScreen(
                             viewModel = authViewModel,
                             onNavigateBack = { navController.popBackStack() },
-                            onSignupSuccess = { navController.navigate("home") }
+                            onSignupSuccess = { navController.navigate("compass") }
                         )
                     }
                     composable("home") {
