@@ -25,18 +25,3 @@ data class ContextEntity(
         return result
     }
 }
-
-class Converters {
-    private val gson = Gson()
-
-    @TypeConverter
-    fun fromFloatArray(array: FloatArray): String {
-        return gson.toJson(array)
-    }
-
-    @TypeConverter
-    fun toFloatArray(json: String): FloatArray {
-        val type = object : TypeToken<FloatArray>() {}.type
-        return gson.fromJson(json, type)
-    }
-}
