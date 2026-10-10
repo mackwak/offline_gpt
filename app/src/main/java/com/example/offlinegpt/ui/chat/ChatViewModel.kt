@@ -546,14 +546,15 @@ class ChatViewModel @Inject constructor(
     }
 
     fun askWhereAmI(compassHeading: String) {
+
         val location = locationProvider.getCurrentLocation()
         val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
         
         val prompt = if (location != null) {
             val address = locationProvider.getAddressFromLocation(location)
-            "I am currently facing $compassHeading. The current time is $time, and my location is $address. Based on this, please describe where I am, tell me the exact time, and explain where the sun is likely positioned in the sky relative to my current position."
+            "I am currently facing $compassHeading. The current time is $time, and my location is $address. Based on this, please describe where I am, tell me the exact time, and explain where the sun is likely positioned in the sky relative to my current position. Conclude if i can see the sun now"
         } else {
-            "I am currently facing $compassHeading. The current time is $time. I couldn't retrieve my precise location. Based on this, please tell me what time it is, let me know that my location is unavailable, and mention where the sun would typically be at this time of day."
+            "I am currently facing $compassHeading. The current time is $time. I couldn't retrieve my precise location. Based on this, please tell me what time it is, let me know that my location is unavailable, and mention where the sun would typically be at this time of day. Conclude if i can see the sun now"
         }
 
         viewModelScope.launch {

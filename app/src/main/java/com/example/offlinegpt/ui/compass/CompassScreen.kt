@@ -5,6 +5,7 @@ import android.graphics.Typeface
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,12 +21,15 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.offlinegpt.ui.auth.AuthViewModel
 import com.example.offlinegpt.ui.chat.ChatViewModel
+import com.example.offlinegpt.ui.weather.WeatherUiState
+import com.example.offlinegpt.ui.weather.WeatherViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,7 +42,8 @@ fun CompassScreen(
     onNavigateToNearbyPlaces: () -> Unit = {},
     chatViewModel: ChatViewModel = hiltViewModel(),
     viewModel: CompassViewModel = hiltViewModel(),
-    authViewModel: AuthViewModel = hiltViewModel()
+    authViewModel: AuthViewModel = hiltViewModel(),
+    weatherViewModel: WeatherViewModel = hiltViewModel()
 ) {
     val azimuth by viewModel.azimuth.collectAsState()
     val sunAzimuth by viewModel.sunAzimuth.collectAsState()
@@ -51,6 +56,7 @@ fun CompassScreen(
     val animatedAzimuth by animateFloatAsState(targetValue = -azimuth, label = "Compass Rotation")
     val errorMessage = chatViewModel.errorMessage.collectAsState(null)
     val modelReady = chatViewModel.isModelReady.collectAsState(false)
+    val uiState = weatherViewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
         chatViewModel.validateModel()
@@ -235,7 +241,34 @@ fun CompassScreen(
                     else -> "N"
                 }
 
-                Canvas(modifier = Modifier.size(320.dp)) {
+                Canvas(
+                    modifier = Modifier
+                        .size(320.dp)
+                        .pointerInput(Unit) {
+                            detectTapGestures { tapOffset ->
+                                val center = Offset(size.width / 2f, size.height / 2f)
+                                val dialRadius = (size.width / 2f) * 0.95f
+                                val sunDist = dialRadius + 15.dp.toPx()
+                                val totalSunAngleRad = Math.toRadians((animatedAzimuth + sunAzimuth - 90).toDouble())
+
+                                val sunX = (center.x + sunDist * Math.cos(totalSunAngleRad)).toFloat()
+                                val sunY = (center.y + sunDist * Math.sin(totalSunAngleRad)).toFloat()
+
+                                val touchRadius = 35.dp.toPx()
+                                val distToSun = Math.hypot((tapOffset.x - sunX).toDouble(), (tapOffset.y - sunY).toDouble())
+
+                                if (distToSun <= touchRadius) {
+                                    uiState.value.let { state ->
+                                        if (state is WeatherUiState.Success) {
+                                            chatViewModel.askWhereAmI("${normalizedAzimuth2.floatValue.toInt()}° ${directionShort.value}. temperature is ${state.currentTemp}, humidity is ${state.humidity} and condition is ${state.condition}")
+                                        } else {
+                                            chatViewModel.askWhereAmI("${normalizedAzimuth2.floatValue.toInt()}° ${directionShort.value}")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                ) {
                     val center = Offset(size.width / 2, size.height / 2)
                     val outerRadius = size.width / 2
                     val innerCircleRadius = outerRadius * 0.45f
