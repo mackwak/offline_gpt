@@ -26,12 +26,24 @@ class CompassViewModel @Inject constructor(
     private val _isShowMenuDialog = MutableStateFlow(false)
     val isShowMenuDialog: StateFlow<Boolean> = _isShowMenuDialog.asStateFlow()
 
+    private val _isShowDeleteMenuDialog = MutableStateFlow(false)
+    val isShowDeleteMenuDialog: StateFlow<Boolean> = _isShowDeleteMenuDialog.asStateFlow()
+
+
     fun showMenuDialog() {
         _isShowMenuDialog.value = true
     }
 
     fun dismissMenuDialog() {
         _isShowMenuDialog.value = false
+    }
+
+    fun showDeleteAccountMenuDialog() {
+        _isShowDeleteMenuDialog.value = true
+    }
+
+    fun dismissDeleteAccountMenuDialog() {
+        _isShowDeleteMenuDialog.value = false
     }
 
     // Sun azimuth relative to North (0-360)

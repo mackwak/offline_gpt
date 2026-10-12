@@ -48,6 +48,7 @@ fun CompassScreen(
     val azimuth by viewModel.azimuth.collectAsState()
     val sunAzimuth by viewModel.sunAzimuth.collectAsState()
     val isShowMenuDialog by viewModel.isShowMenuDialog.collectAsState()
+    val isShowDeleteMenuDialog by viewModel.isShowDeleteMenuDialog.collectAsState()
     val aiLocationInfo by chatViewModel.aiLocationInfo.collectAsState()
     val isDownloading by chatViewModel.isDownloading.collectAsState()
     val downloadProgress by chatViewModel.downloadProgress.collectAsState()
@@ -60,6 +61,33 @@ fun CompassScreen(
 
     LaunchedEffect(Unit) {
         chatViewModel.validateModel()
+    }
+
+    if (isShowDeleteMenuDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDeleteAccountMenuDialog() },
+            title = { Text("Do you want to proceed it?", fontSize = 15.sp) },
+            text = {
+                Text("Your account will be permanently deleted and cannot login.?", fontSize = 15.sp)
+            },
+            confirmButton = {
+
+                TextButton(onClick = {
+                    viewModel.dismissDeleteAccountMenuDialog()
+                }) {
+                    Text("No")
+                }
+
+               },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.dismissDeleteAccountMenuDialog()
+                    authViewModel.onDeleteAccountClick()
+                }) {
+                    Text("Yes")
+                }
+            }
+        )
     }
 
     if (isShowMenuDialog) {
@@ -115,8 +143,10 @@ fun CompassScreen(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { viewModel.dismissMenuDialog() }) {
-                    Text("Close")
+                TextButton(onClick = {
+                    viewModel.dismissMenuDialog()
+                    viewModel.showDeleteAccountMenuDialog() }) {
+                    Text("Request to delete the account")
                 }
             }
         )
