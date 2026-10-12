@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall, HttpsError, onRequest } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import {
     generateRegistrationOptions,
@@ -104,7 +104,7 @@ const credentialIdsMatch = (id1, id2) => {
 export const generateRegisterOptions = onCall(async (request) => {
   const email = normalizeEmail(request.data.email);
   if (!email) {
-      throw new HttpsError('invalid-argument', '이메일은 필수 입력 항목입니다.');
+      throw new HttpsError('invalid-argument', 'Email is required');
   }
 
   try {
@@ -141,7 +141,7 @@ export const generateRegisterOptions = onCall(async (request) => {
       await userRef.set({ currentChallenge: options.challenge }, { merge: true });
       return responseOptions;
   } catch (error) {
-      logger.error("등록 옵션 생성 중 에러:", error);
+      logger.error("Error:", error);
       rethrowHttpsError(error);
   }
 });
@@ -152,7 +152,7 @@ export const verifyRegister = onCall(async (request) => {
    const requestChallenge = typeof request.data.challenge === 'string' ? request.data.challenge : null;
    const email = normalizeEmail(request.data.email);
    if (!email || !credential) {
-       throw new HttpsError('invalid-argument', '이메일과 인증 정보가 필요합니다.');
+       throw new HttpsError('invalid-argument', 'Email is required');
    }
 
    try {
@@ -160,14 +160,14 @@ export const verifyRegister = onCall(async (request) => {
            credential = JSON.parse(credential);
        }
 
-       logger.info("파싱된 credential 객체 확인:", credential);
+       logger.info("Credential:", credential);
 
        const userRef = db.collection('passkey_users').doc(email);
        const userDoc = await userRef.get();
        const userData = userDoc.exists ? userDoc.data() : null;
        const expectedChallenge = userData?.currentChallenge || requestChallenge;
        if (!expectedChallenge) {
-           throw new HttpsError('failed-precondition', '진행 중인 등록 챌린지가 없습니다. 다시 등록을 시작해주세요.');
+           throw new HttpsError('failed-precondition', 'No challenge exist.');
        }
 
        const formattedCredential = {
@@ -223,10 +223,10 @@ export const verifyRegister = onCall(async (request) => {
            const customToken = await auth.createCustomToken(uid);
            return { verified: true, customToken };
        } else {
-           throw new HttpsError('permission-denied', 'Passkey 검증에 실패했습니다.');
+           throw new HttpsError('permission-denied', 'Passkey verification failed');
        }
    } catch (error) {
-       logger.error("등록 검증 중 에러:", error);
+       logger.error("Passkey verification failed:", error);
        rethrowHttpsError(error);
    }
 });
@@ -281,7 +281,7 @@ export const verifyAuth = onCall(async (request) => {
   const email = normalizeEmail(request.data.email);
   const { credential } = request.data;
   if (!credential) {
-    throw new HttpsError('invalid-argument', '인증 정보가 필요합니다.');
+    throw new HttpsError('invalid-argument', 'Crediential is required');
   }
 
   let credObj = credential;
@@ -338,11 +338,11 @@ export const verifyAuth = onCall(async (request) => {
   }
 
   if (!userData) {
-    throw new HttpsError('not-found', '등록된 패스키 사용자 정보를 찾을 수 없습니다.');
+    throw new HttpsError('not-found', 'No passkey for this user');
   }
 
   if (!userData.currentChallenge) {
-    throw new HttpsError('failed-precondition', '진행 중인 로그인 챌린지가 없습니다. 다시 시도해주세요.');
+    throw new HttpsError('failed-precondition', 'No challenge exist');
   }
 
   // Find matching device record for authentication verification
@@ -358,7 +358,7 @@ export const verifyAuth = onCall(async (request) => {
   });
 
   if (!matchedDevice) {
-    throw new HttpsError('not-found', '등록된 패스키 기기 정보를 찾을 수 없습니다.');
+    throw new HttpsError('not-found', 'No passkey exist');
   }
 
   try {
@@ -386,10 +386,14 @@ export const verifyAuth = onCall(async (request) => {
 
       return { verified: true, customToken };
     } else {
-      throw new HttpsError('permission-denied', '인증 검증에 실패했습니다.');
+      throw new HttpsError('permission-denied', 'Verification failed');
     }
   } catch (error) {
     logger.error('로그인 검증 중 에러:', error);
     rethrowHttpsError(error);
   }
+});
+
+export const deleteUserData = onRequest({ cors: true }, async (req, res) => {
+  res.status(400).send({ error: "Please sign in again to process your account deletion through the app" });
 });

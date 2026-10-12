@@ -114,6 +114,14 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun onDeleteAccountClick() {
+        auth.currentUser?.delete()
+        auth.signOut()
+        viewModelScope.launch {
+            _events.emit(AuthEvent.Logout)
+        }
+    }
+
     fun onLogoutClick() {
         auth.signOut()
         viewModelScope.launch {
