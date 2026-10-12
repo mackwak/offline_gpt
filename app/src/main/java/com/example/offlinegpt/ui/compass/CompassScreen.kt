@@ -66,9 +66,9 @@ fun CompassScreen(
     if (isShowDeleteMenuDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissDeleteAccountMenuDialog() },
-            title = { Text("Do you want to proceed it?", fontSize = 15.sp) },
+            title = { Text("Do you want to proceed it?", fontSize = 16.sp) },
             text = {
-                Text("Your account will be permanently deleted and cannot login.?", fontSize = 15.sp)
+                Text("Your account will be permanently deleted, and you will no longer be able to log in.", fontSize = 15.sp)
             },
             confirmButton = {
 
