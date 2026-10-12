@@ -395,5 +395,5 @@ export const verifyAuth = onCall(async (request) => {
 });
 
 export const deleteUserData = onRequest({ cors: true }, async (req, res) => {
-  res.status(400).send({ error: "Please sign in again to process your account deletion through the app" });
+  res.status(200).send({ error: "Authentication required. Please complete account deletion inside the app." });
 });
