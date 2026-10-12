@@ -137,7 +137,7 @@ class ChatViewModel @Inject constructor(
                                 downloading = false
                                 _isDownloading.value = false
                                 val reason = if (reasonIndex != -1) cursor.getInt(reasonIndex) else -1
-                                _errorMessage.value = "Model download failed (Reason code: $reason)"
+                                _errorMessage.value = "Error: Gemma model not found. Please download it first."
                                 Log.e("Model Download", "Failed with DownloadManager reason: $reason")
                             }
                         }
@@ -299,7 +299,7 @@ class ChatViewModel @Inject constructor(
                 _isModelReady.value = true
             } catch (e: Exception) {
                 _isModelReady.value = false
-                _errorMessage.value = "Model validation failed: ${e.localizedMessage}"
+                _errorMessage.value = "Error: Gemma model not found. Please download it first."
             }
         }
     }
@@ -382,7 +382,7 @@ class ChatViewModel @Inject constructor(
                 try {
                     liteRTLMEngine.initialize(modelFile.absolutePath)
                 } catch (e: Exception) {
-                    _currentStreamingText.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
+                    _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
                     return "Error: ${e.localizedMessage}"
                 }
             } else {
@@ -395,14 +395,14 @@ class ChatViewModel @Inject constructor(
             withContext(Dispatchers.Default) {
                 liteRTLMEngine.sendMessageStream(prompt)
                     .catch { error ->
-                        responseBuilder.append("Error: ${error.localizedMessage}")
+                        responseBuilder.append("Error: Gemma model not found. Please download it first.")
                     }
                     .collect { chunk ->
                         responseBuilder.append(chunk.toString())
                     }
             }
         } catch (e: Exception) {
-            return "Error: ${e.localizedMessage}"
+            return "Error: Gemma model not found. Please download it first."
         }
 
         return responseBuilder.toString()
@@ -424,11 +424,11 @@ class ChatViewModel @Inject constructor(
                         try {
                             liteRTLMEngine.initialize(modelFile.absolutePath)
                         } catch (e: Exception) {
-                            _errorMessage.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
+                            _errorMessage.value = "Error: Gemma model not found. Please download it first."
                             return@launch
                         }
                     } else {
-                        _currentStreamingText.value = "Error: Model file not found. Please download the Gemma model."
+                        _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
                         return@launch
                     }
                 }
@@ -459,7 +459,7 @@ class ChatViewModel @Inject constructor(
 
                     liteRTLMEngine.sendMessageStream(ragPrompt)
                         .catch { error ->
-                            _currentStreamingText.value = "Error: ${error.localizedMessage}"
+                            _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
                         }
                         .collect { chunk ->
                             val text = chunk.toString()
@@ -473,7 +473,7 @@ class ChatViewModel @Inject constructor(
                     repository.sendMessage(sessionId, finalResponse, isUser = false)
                 }
             } catch (e: Exception) {
-                _currentStreamingText.value = "Error: ${e.localizedMessage}"
+                _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
             } finally {
                 _currentStreamingText.value = null
             }
@@ -497,7 +497,7 @@ class ChatViewModel @Inject constructor(
                         try {
                             liteRTLMEngine.initialize(modelFile.absolutePath)
                         } catch (e: Exception) {
-                            _errorMessage.value = "Failed to initialize LiteRT-LM: ${e.localizedMessage}"
+                            _errorMessage.value = "Error: Gemma model not found. Please download it first."
                             return@launch
                         }
                     } else {
@@ -514,7 +514,7 @@ class ChatViewModel @Inject constructor(
                 withContext(Dispatchers.Default) {
                     liteRTLMEngine.sendMessageStream(content)
                         .catch { error ->
-                            _currentStreamingText.value = "Error: ${error.localizedMessage}"
+                            _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
                         }
                         .collect { chunk ->
                             val text = chunk.toString()
@@ -528,7 +528,7 @@ class ChatViewModel @Inject constructor(
                     repository.sendMessage(sessionId, finalResponse, isUser = false)
                 }
             } catch (e: Exception) {
-                _currentStreamingText.value = "Error: ${e.localizedMessage}"
+                _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
             } finally {
                 _currentStreamingText.value = null
             }
