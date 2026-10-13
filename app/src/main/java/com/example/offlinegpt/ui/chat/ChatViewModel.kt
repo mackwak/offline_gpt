@@ -9,8 +9,11 @@ import android.os.Environment
 import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.unit.minus
+import androidx.compose.ui.unit.plus
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.offlinegpt.data.calculator.CalculatorService
 import com.example.offlinegpt.data.engine.EmbeddingEngine
 import com.example.offlinegpt.data.engine.LiteRTLMEngine
 import com.example.offlinegpt.data.location.LocationProvider
@@ -42,6 +45,7 @@ class ChatViewModel @Inject constructor(
     private val locationProvider: LocationProvider,
     private val ttsManager: TextToSpeechManager,
     private val embeddingEngine: EmbeddingEngine,
+    private val calculatorService: CalculatorService,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -487,6 +491,48 @@ class ChatViewModel @Inject constructor(
 
     }
 
+    private fun executeToolCall(toolName: String, args: String): String? {
+        return when (toolName.lowercase(Locale.getDefault())) {
+            "calculator", "calc" -> {
+                val parts = args.split(",").map { it.trim() }
+                if (parts.size >= 3) {
+                    val a = parts[0].toDoubleOrNull()
+                    val b = parts[1].toDoubleOrNull()
+                    val op = parts[2]
+                    if (a != null && b != null) {
+                        val res = when (op) {
+                            "+" -> calculatorService.plus(a, b)
+                            "-" -> calculatorService.minus(a, b)
+                            "*" -> a * b
+                            "/" -> if (b != 0.0) a / b else "Division by zero"
+                            else -> calculatorService.plus(a, b)
+                        }
+                        "$a $op $b = $res"
+                    } else null
+                } else if (parts.size == 2) {
+                    val a = parts[0].toDoubleOrNull()
+                    val b = parts[1].toDoubleOrNull()
+                    if (a != null && b != null) {
+                        "$a + $b = ${calculatorService.plus(a, b)}"
+                    } else null
+                } else null
+            }
+            "get_location", "location" -> {
+                val loc = locationProvider.getCurrentLocation()
+                if (loc != null) {
+                    val address = locationProvider.getAddressFromLocation(loc)
+                    "$address (Lat: ${loc.latitude}, Lon: ${loc.longitude})"
+                } else {
+                    "Location unavailable"
+                }
+            }
+            "get_time", "time" -> {
+                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            }
+            else -> null
+        }
+    }
+
     fun sendMessage(content: String) {
         val sessionId = currentSessionId.value ?: return
         if (content.isBlank()) return
@@ -516,8 +562,22 @@ class ChatViewModel @Inject constructor(
                 val responseBuilder = StringBuilder()
                 _currentStreamingText.value = ""
 
+                val promptWithTools = """
+                You are an AI assistant with access to tools.
+                Available tools:
+                - calculator(a, b, op): Performs math calculations. Format: [TOOL: calculator(12, 5, +)] where op is +, -, *, /
+                - get_location(): Returns current location. Format: [TOOL: get_location()]
+                - get_time(): Returns current date and time. Format: [TOOL: get_time()]
+
+                If you need to use a tool to answer the user's question, output [TOOL: tool_name(...)].
+                Otherwise, answer directly.
+
+                User Question: $content
+            """.trimIndent()
+
+
                 withContext(Dispatchers.Default) {
-                    liteRTLMEngine.sendMessageStream(content)
+                    liteRTLMEngine.sendMessageStream(promptWithTools)
                         .catch { error ->
                             _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
                         }
@@ -528,7 +588,28 @@ class ChatViewModel @Inject constructor(
                         }
                 }
 
-                val finalResponse = responseBuilder.toString()
+             //   val finalResponse = responseBuilder.toString()
+
+                var generatedText = responseBuilder.toString()
+                val toolCallRegex = Regex("""\[TOOL:\s*(\w+)\((.*?)\)\]""")
+                val toolMatches = toolCallRegex.findAll(generatedText).toList()
+
+                if (toolMatches.isNotEmpty()) {
+                    val toolResultsBuilder = StringBuilder(generatedText)
+                    for (match in toolMatches) {
+                        val toolName = match.groupValues[1]
+                        val toolArgs = match.groupValues[2]
+                        val result = executeToolCall(toolName, toolArgs)
+                        if (result != null) {
+                            toolResultsBuilder.append("\n\n🛠️ [Tool Executed: $toolName]\nResult: $result")
+                        }
+                    }
+                    generatedText = toolResultsBuilder.toString()
+                    _currentStreamingText.value = generatedText
+                }
+
+                val finalResponse = generatedText
+
                 if (finalResponse.isNotEmpty()) {
                     repository.sendMessage(sessionId, finalResponse, isUser = false)
                 }
