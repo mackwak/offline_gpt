@@ -173,7 +173,9 @@ class ChatViewModel @Inject constructor(
 
     fun stopDownloading() {
         _isDownloading.value = false
+        _errorMessage.value = ""
         _downloadProgress.value = 0f
+        _aiLocationInfo.value = null
         activeDownloadId?.let { id ->
             val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             manager.remove(id)
@@ -233,6 +235,7 @@ class ChatViewModel @Inject constructor(
                             downloading = false
                             _isDownloading.value = false
                             _downloadProgress.value = 1.0f
+                            _aiLocationInfo.value = null
                             buttonText.value = "Where am I"
                             validateModel()
                         }
@@ -383,7 +386,7 @@ class ChatViewModel @Inject constructor(
                     liteRTLMEngine.initialize(modelFile.absolutePath)
                 } catch (e: Exception) {
                     _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
-                    return "Error: ${e.localizedMessage}"
+                    return "Error: Gemma model not found. Please download it first."
                 }
             } else {
                 return "Error: Gemma model not found. Please download it first."
