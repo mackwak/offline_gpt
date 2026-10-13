@@ -235,8 +235,8 @@ class ChatViewModel @Inject constructor(
                             downloading = false
                             _isDownloading.value = false
                             _downloadProgress.value = 1.0f
-                            _aiLocationInfo.value = null
                             buttonText.value = "Where am I"
+                            _aiLocationInfo.value = null
                             validateModel()
                         }
 
@@ -244,10 +244,12 @@ class ChatViewModel @Inject constructor(
                             downloading = false
                             _isDownloading.value = false
                             _errorMessage.value = "Model download failed."
+                            _aiLocationInfo.value = null
                         }
                     }
                 } else {
                     downloading = false
+                    _aiLocationInfo.value = null
                     _isDownloading.value = false
                 }
                 cursor.close()
