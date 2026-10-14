@@ -49,6 +49,7 @@ firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.r
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-config = { group = "com.google.firebase", name = "firebase-config" }
 firebase-functions = { group = "com.google.firebase", name = "firebase-functions" }
+firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version = "1.6.0" }
 androidx-credentials-play-services = { group = "androidx.credentials", name = "credentials-play-services-auth", version = "1.6.0" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
@@ -76,4 +77,5 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 google-services = { id = "com.google.gms.google-services", version = "4.4.2" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version = "3.0.8" }
 
