@@ -411,7 +411,7 @@ class ChatViewModel @Inject constructor(
         }
 
         if (responseBuilder.toString().startsWith("Error:")) {
-            return "Error: Gemma model not found. Please download it first."
+            return "Gemma model not found. Please download it first."
         } else {
             return responseBuilder.toString()
         }
