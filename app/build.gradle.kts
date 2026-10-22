@@ -143,6 +143,9 @@ dependencies {
         exclude(group = "org.tensorflow", module = "tensorflow-lite-support-api")
     }
 
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

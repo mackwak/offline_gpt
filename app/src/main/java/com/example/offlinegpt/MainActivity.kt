@@ -21,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.offlinegpt.data.engine.TavilyViewModel
 import com.example.offlinegpt.ui.auth.AuthViewModel
 import com.example.offlinegpt.ui.auth.LoginScreen
 import com.example.offlinegpt.ui.auth.SignupScreen
@@ -206,8 +207,13 @@ fun HomeScreen(
     onNavigateToNearbyPlaces: () -> Unit = {},
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
+    val searchViewModel: TavilyViewModel = hiltViewModel()
     val chatViewModel: ChatViewModel = hiltViewModel()
     val userEmail = authViewModel.userEmail
+
+    LaunchedEffect(Unit) {
+        searchViewModel.search("Where is best place to go in Seoul?")
+    }
 
     Column(
         modifier = Modifier
