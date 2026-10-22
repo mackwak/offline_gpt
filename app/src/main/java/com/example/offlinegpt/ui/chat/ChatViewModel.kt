@@ -588,8 +588,6 @@ class ChatViewModel @Inject constructor(
                         }
                 }
 
-             //   val finalResponse = responseBuilder.toString()
-
                 var generatedText = responseBuilder.toString()
                 val toolCallRegex = Regex("""\[TOOL:\s*(\w+)\((.*?)\)\]""")
                 val toolMatches = toolCallRegex.findAll(generatedText).toList()
