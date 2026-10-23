@@ -16,6 +16,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.offlinegpt.data.calculator.CalculatorService
 import com.example.offlinegpt.data.engine.EmbeddingEngine
 import com.example.offlinegpt.data.engine.LiteRTLMEngine
+import com.example.offlinegpt.data.engine.TavilyRepository
 import com.example.offlinegpt.data.location.LocationProvider
 import com.example.offlinegpt.data.local.ChatMessage
 import com.example.offlinegpt.data.local.ChatSession
@@ -46,6 +47,7 @@ class ChatViewModel @Inject constructor(
     private val ttsManager: TextToSpeechManager,
     private val embeddingEngine: EmbeddingEngine,
     private val calculatorService: CalculatorService,
+    private val tavilyRepository: TavilyRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -497,7 +499,7 @@ class ChatViewModel @Inject constructor(
 
     }
 
-    private fun executeToolCall(toolName: String, args: String): String? {
+    private suspend fun executeToolCall(toolName: String, args: String): String? {
         return when (toolName.lowercase(Locale.getDefault())) {
             "calculator", "calc" -> {
                 val parts = args.split(",").map { it.trim() }
@@ -535,6 +537,19 @@ class ChatViewModel @Inject constructor(
             "get_time", "time" -> {
                 SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
             }
+            "web_search" -> {
+                tavilyRepository.performSearch(args).fold(
+                    onSuccess = { response ->
+                        val results = response.results.joinToString("\n") { result ->
+                            "- ${result.title}: ${result.url}"
+                        }
+                        "Search Results for '$args':\n$results"
+                    },
+                    onFailure = { error ->
+                        "Web search failed: ${error.localizedMessage}"
+                    }
+                )
+            }
             else -> null
         }
     }
@@ -563,6 +578,12 @@ class ChatViewModel @Inject constructor(
                     }
                 }
 
+                // get all existing messages from repository for history context
+                val existingMessages = repository.getMessagesForSession(sessionId).first()
+                val existing = existingMessages.joinToString("\n") { message ->
+                    "${if (message.isUser) "User" else "Assistant"}: ${message.content}"
+                }
+
                 repository.sendMessage(sessionId, content, isUser = true)
 
                 val responseBuilder = StringBuilder()
@@ -574,10 +595,13 @@ class ChatViewModel @Inject constructor(
                 - calculator(a, b, op): Performs math calculations. Format: [TOOL: calculator(12, 5, +)] where op is +, -, *, /
                 - get_location(): Returns current location. Format: [TOOL: get_location()]
                 - get_time(): Returns current date and time. Format: [TOOL: get_time()]
+                - web_search(): Performs a web search if answer is not sure. Format: [TOOL: web_search(query)]
 
                 If you need to use a tool to answer the user's question, output [TOOL: tool_name(...)].
                 Otherwise, answer directly.
-
+                
+                Context: $existing
+ 
                 User Question: $content
             """.trimIndent()
 
