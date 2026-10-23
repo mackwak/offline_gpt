@@ -98,6 +98,11 @@ dependencies {
     implementation(libs.play.services.maps)
     implementation(libs.maps.compose)
 
+    // Retrofit & Gson
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.gson)
+
     // LiteRT & TensorFlow Lite
     implementation(libs.litertlm.android)
     implementation(libs.tensorflow.lite.metadata)
