@@ -546,6 +546,8 @@ class ChatViewModel @Inject constructor(
                         "Search Results for '$args':\n$results"
                     },
                     onFailure = { error ->
+                        Log.d("promptWithTools", "Error: ${error.localizedMessage}")
+
                         "Web search failed: ${error.localizedMessage}"
                     }
                 )
@@ -606,10 +608,13 @@ class ChatViewModel @Inject constructor(
             """.trimIndent()
 
 
+                Log.d("promptWithTools", promptWithTools)
+
                 withContext(Dispatchers.Default) {
                     liteRTLMEngine.sendMessageStream(promptWithTools)
                         .catch { error ->
-                            _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
+                            Log.d("promptWithTools", "Error: ${error.localizedMessage}")
+                            _currentStreamingText.value = "${error.localizedMessage}"
                         }
                         .collect { chunk ->
                             val text = chunk.toString()
@@ -630,6 +635,8 @@ class ChatViewModel @Inject constructor(
                         val result = executeToolCall(toolName, toolArgs)
                         if (result != null) {
                             toolResultsBuilder.append("\n\n🛠️ [Tool Executed: $toolName]\nResult: $result")
+                        } else {
+                            Log.d("promptWithTools", "Tool Failed")
                         }
                     }
                     generatedText = toolResultsBuilder.toString()
