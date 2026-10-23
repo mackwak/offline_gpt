@@ -414,7 +414,13 @@ class ChatViewModel @Inject constructor(
             return "Error: Gemma model not found. Please download it first."
         }
 
-        return responseBuilder.toString()
+        if (responseBuilder.toString().startsWith("Error:")) {
+            return "Gemma model not found. Please download it first."
+        } else {
+            return responseBuilder.toString()
+        }
+
+
     }
 
     fun sendRagMessage(content: String) {

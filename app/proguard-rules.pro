@@ -22,3 +22,12 @@
 }
 
 -keep class com.google.ai.edge.litertlm.LiteRtLmJni$* { *; }
+
+-keep class com.google.ai.edge.litertlm.LiteRtLmJni$JniMessageCallback {
+    *;
+}
+
+# Alternatively, if Lyh is the obfuscated name or your specific callback wrapper class:
+-keep class * implements com.google.ai.edge.litertlm.LiteRtLmJni$JniMessageCallback {
+    <methods>;
+}

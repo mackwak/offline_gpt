@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.crashlytics)
 }
 
 android {
@@ -14,7 +15,7 @@ android {
         applicationId = "compass.assistant"
         minSdk = 25
         targetSdk = 37
-        versionCode = 16
+        versionCode = 20
         versionName = "1.0"
 
         testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"
@@ -121,6 +122,7 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.config)
     implementation(libs.firebase.functions)
+    implementation(libs.firebase.crashlytics)
 
     // Credentials / Passkey
     implementation(libs.androidx.credentials)
@@ -142,9 +144,6 @@ dependencies {
         exclude(group = "org.tensorflow", module = "tensorflow-lite-api")
         exclude(group = "org.tensorflow", module = "tensorflow-lite-support-api")
     }
-
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
 
     // Room
     implementation(libs.room.runtime)
