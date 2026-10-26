@@ -2,6 +2,7 @@ package com.example.offlinegpt.di
 
 import com.example.offlinegpt.data.TavilySearchRequest
 import com.example.offlinegpt.data.engine.TavilySearchResponse
+import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,6 +20,10 @@ import kotlin.jvm.java
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideGson(): Gson = Gson()
 
     @Provides
     @Singleton
