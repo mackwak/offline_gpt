@@ -30,7 +30,9 @@ jobs:
           bundler: 'default' # Uses the modern default bundler packaged with Ruby 3.2
 
       - name: Update Bundler version in Gemfile.lock
-        run: bundle update --bundler
+        run: |
+          bundle update --bundler
+          bundle update fastlane
 
       - name: Google Auth
         id: auth
