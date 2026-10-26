@@ -59,30 +59,36 @@ class AgentEventContextManager {
     }
 
     /**
-     * Formats all recorded events into a structured text context for the Agent prompt.
+     * Formats recorded events into a structured, token-safe text context for the Agent prompt.
      */
-    fun buildContextPrompt(): String {
+    fun buildContextPrompt(maxChars: Int = 2000): String {
         if (_events.isEmpty()) return "No prior events in context."
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val sb = StringBuilder("=== EVENT CONTEXT HISTORY ===\n")
 
-        _events.forEachIndexed { index, event ->
+        // Retain only recent 10 events to prevent prefill token overflow
+        val recentEvents = _events.takeLast(10)
+        recentEvents.forEachIndexed { index, event ->
             val timeStr = dateFormat.format(Date(event.timestamp))
             sb.append("[$index] [$timeStr] ")
             when (event) {
                 is AgentEvent.UserInputEvent -> {
-                    sb.append("USER_INPUT: \"${event.message}\"\n")
+                    val msg = if (event.message.length > 300) event.message.take(300) + "..." else event.message
+                    sb.append("USER_INPUT: \"$msg\"\n")
                 }
                 is AgentEvent.LocationEvent -> {
                     sb.append("LOCATION: Address=\"${event.address ?: "Unknown"}\" (Lat: ${event.latitude}, Lon: ${event.longitude})\n")
                 }
                 is AgentEvent.ToolExecutionEvent -> {
                     val status = if (event.isSuccess) "SUCCESS" else "FAILED"
-                    sb.append("TOOL_EXECUTION ($status): tool=\"${event.toolName}\", args=\"${event.args}\", result=\"${event.result}\"\n")
+                    // Truncate long tool execution results
+                    val truncatedResult = if (event.result.length > 350) event.result.take(350) + "... [truncated]" else event.result
+                    sb.append("TOOL_EXECUTION ($status): tool=\"${event.toolName}\", args=\"${event.args}\", result=\"$truncatedResult\"\n")
                 }
                 is AgentEvent.AgentThoughtEvent -> {
-                    sb.append("AGENT_THOUGHT: \"${event.thought}\"\n")
+                    val thought = if (event.thought.length > 250) event.thought.take(250) + "..." else event.thought
+                    sb.append("AGENT_THOUGHT: \"$thought\"\n")
                 }
                 is AgentEvent.SystemStateEvent -> {
                     sb.append("SYSTEM_STATE [${event.stateName}]: \"${event.description}\"\n")
@@ -90,6 +96,8 @@ class AgentEventContextManager {
             }
         }
         sb.append("=============================")
-        return sb.toString()
+
+        val result = sb.toString()
+        return if (result.length > maxChars) result.takeLast(maxChars) else result
     }
 }

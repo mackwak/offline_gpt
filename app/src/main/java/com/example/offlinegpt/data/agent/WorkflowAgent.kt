@@ -114,6 +114,10 @@ class WorkflowAgent @Inject constructor(
         var currentStep = 0
         while (currentStep < maxSteps) {
             currentStep++
+
+            // Reset native conversation state per step to prevent prefill token duplication
+            liteRTLMEngine.resetConversation()
+
             val contextPrompt = contextManager.buildContextPrompt()
             val fullPrompt = getSystemPrompt(contextPrompt, userPrompt)
 
@@ -132,7 +136,7 @@ class WorkflowAgent @Inject constructor(
 
             onStepUpdate(currentStep, parsedResponse)
 
-            when (parsedResponse.action) {
+            when (parsedResponse.resolvedAction) {
                 AgentAction.COMPLETE -> {
                     val finalAnswer = parsedResponse.finalAnswer ?: rawOutput
                     contextManager.addEvent(
@@ -161,7 +165,7 @@ class WorkflowAgent @Inject constructor(
                 }
 
                 AgentAction.NEED_MORE_INFO, AgentAction.ERROR -> {
-                    val msg = parsedResponse.finalAnswer ?: "Workflow ended with state ${parsedResponse.action}"
+                    val msg = parsedResponse.finalAnswer ?: "Workflow ended with state ${parsedResponse.resolvedAction}"
                     return msg
                 }
             }
@@ -201,7 +205,12 @@ class WorkflowAgent @Inject constructor(
                 val query = argsMap["query"]?.toString() ?: ""
                 tavilyRepository.performSearch(query).fold(
                     onSuccess = { response ->
-                        response.results.joinToString("\n") { "- ${it.title}: ${it.url}" }
+                        val summary = if (!response.answer.isNullOrBlank()) "Direct Answer: ${response.answer}\n\n" else ""
+                        val details = response.results.take(3).joinToString("\n\n") { result ->
+                            val snippet = if (result.content.length > 250) result.content.take(250) + "..." else result.content
+                            "Title: ${result.title}\nSnippet: $snippet\nURL: ${result.url}"
+                        }
+                        "$summary$details"
                     },
                     onFailure = { "Web search failed: ${it.localizedMessage}" }
                 )
@@ -211,7 +220,7 @@ class WorkflowAgent @Inject constructor(
     }
 
     /**
-     * Parses the LLM raw output into AgentResponseFormat JSON schema.
+     * Parses the LLM raw output into AgentResponseFormat JSON schema with fallback resolution.
      */
     private fun parseAgentResponse(rawText: String): AgentResponseFormat {
         return try {
@@ -219,7 +228,14 @@ class WorkflowAgent @Inject constructor(
             val jsonEnd = rawText.lastIndexOf('}')
             if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
                 val jsonString = rawText.substring(jsonStart, jsonEnd + 1)
-                gson.fromJson(jsonString, AgentResponseFormat::class.java)
+                val parsed = gson.fromJson(jsonString, AgentResponseFormat::class.java)
+
+                if (parsed.action == null) {
+                    val inferredAction = inferActionFromJson(jsonString, parsed)
+                    parsed.copy(action = inferredAction)
+                } else {
+                    parsed
+                }
             } else {
                 AgentResponseFormat(
                     thought = "Failed to parse JSON responseFormat",
@@ -234,6 +250,23 @@ class WorkflowAgent @Inject constructor(
                 action = AgentAction.COMPLETE,
                 finalAnswer = rawText
             )
+        }
+    }
+
+    private fun inferActionFromJson(jsonString: String, parsed: AgentResponseFormat): AgentAction {
+        val lowerJson = jsonString.lowercase(Locale.getDefault())
+        return when {
+            lowerJson.contains("\"action\": \"execute_tool\"") ||
+            lowerJson.contains("\"action\":\"execute_tool\"") ||
+            parsed.toolCall != null -> AgentAction.EXECUTE_TOOL
+
+            lowerJson.contains("\"action\": \"complete\"") ||
+            lowerJson.contains("\"action\":\"complete\"") ||
+            !parsed.finalAnswer.isNullOrBlank() -> AgentAction.COMPLETE
+
+            lowerJson.contains("\"action\": \"need_more_info\"") -> AgentAction.NEED_MORE_INFO
+            lowerJson.contains("\"action\": \"error\"") -> AgentAction.ERROR
+            else -> AgentAction.COMPLETE
         }
     }
 }

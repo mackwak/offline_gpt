@@ -43,7 +43,7 @@ class WorkflowViewModel @Inject constructor(
             try {
                 val finalAnswer = workflowAgent.runWorkflow(
                     userPrompt = userQuery,
-                    maxSteps = 5,
+                    maxSteps = 15,
                     onStepUpdate = { step, responseFormat ->
                         _uiState.value = _uiState.value.copy(
                             currentStep = step,

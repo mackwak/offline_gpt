@@ -27,7 +27,23 @@ data class ToolCallData(
 
 data class AgentResponseFormat(
     @SerializedName("thought") val thought: String? = null,
-    @SerializedName("action") val action: AgentAction = AgentAction.COMPLETE,
+    @SerializedName("action") val action: AgentAction? = null,
     @SerializedName("toolCall") val toolCall: ToolCallData? = null,
     @SerializedName("finalAnswer") val finalAnswer: String? = null
-)
+) {
+    /**
+     * Guarantees a non-null AgentAction even if Gson sets action to null
+     * due to LLM casing differences or missing action fields in JSON.
+     */
+    val resolvedAction: AgentAction
+        get() {
+            if (action != null) return action
+            if (toolCall != null && toolCall.toolName.isNotBlank()) {
+                return AgentAction.EXECUTE_TOOL
+            }
+            if (!finalAnswer.isNullOrBlank()) {
+                return AgentAction.COMPLETE
+            }
+            return AgentAction.COMPLETE
+        }
+}
