@@ -51,6 +51,8 @@ class TavilyViewModel @Inject constructor(
     }
 }
 
+
+
 @Singleton
 class TavilyRepository @Inject constructor(
     private val api: TavilyApiService
