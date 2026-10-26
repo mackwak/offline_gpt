@@ -24,11 +24,13 @@ jobs:
           cache: 'gradle'
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-          bundler: 'default' # Uses the bundler version matching/shipped with Ruby 3.2
-          bundler-cache: true
+          uses: ruby/setup-ruby@v1
+          with:
+            ruby-version: '3.2'
+            bundler: 'default' # Uses the modern default bundler packaged with Ruby 3.2
+
+      - name: Update Bundler version in Gemfile.lock
+          run: bundle update --bundler
 
       - name: Google Auth
         id: auth
