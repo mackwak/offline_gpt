@@ -1,12 +1,16 @@
 package com.example.offlinegpt.data.agent
 
+import android.content.Context
+import android.os.Environment
 import android.util.Log
 import com.example.offlinegpt.data.calculator.CalculatorService
 import com.example.offlinegpt.data.engine.LiteRTLMEngine
 import com.example.offlinegpt.data.engine.TavilyRepository
 import com.example.offlinegpt.data.location.LocationProvider
 import com.google.gson.Gson
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.catch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -19,6 +23,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class WorkflowAgent @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val liteRTLMEngine: LiteRTLMEngine,
     private val calculatorService: CalculatorService,
     private val locationProvider: LocationProvider,
@@ -26,6 +31,23 @@ class WorkflowAgent @Inject constructor(
     private val gson: Gson
 ) {
     val contextManager = AgentEventContextManager()
+
+    suspend fun ensureEngineInitialized() {
+        if (!liteRTLMEngine.isInitialized()) {
+            val modelFile = File(
+                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                "gemma-4-E2B-it.litertlm"
+            )
+            if (modelFile.exists()) {
+                liteRTLMEngine.initialize(modelFile.absolutePath)
+                contextManager.addEvent(
+                    AgentEvent.SystemStateEvent("ENGINE_INITIALIZED", "LiteRT-LM Engine successfully initialized.")
+                )
+            } else {
+                throw IllegalStateException("Model file not found. Please download the Gemma model first.")
+            }
+        }
+    }
 
     /**
      * System prompt establishing the Agent identity, tools, and responseFormat JSON schema.
@@ -70,6 +92,9 @@ class WorkflowAgent @Inject constructor(
         maxSteps: Int = 5,
         onStepUpdate: (step: Int, response: AgentResponseFormat) -> Unit
     ): String {
+        // Ensure LiteRT-LM engine is initialized before AI workflow runs
+        ensureEngineInitialized()
+
         // Record user input event
         contextManager.addEvent(AgentEvent.UserInputEvent(message = userPrompt))
 

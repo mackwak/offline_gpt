@@ -25,6 +25,7 @@ import com.example.offlinegpt.data.engine.TavilyViewModel
 import com.example.offlinegpt.ui.auth.AuthViewModel
 import com.example.offlinegpt.ui.auth.LoginScreen
 import com.example.offlinegpt.ui.auth.SignupScreen
+import com.example.offlinegpt.ui.chat.AIWorkFlowScreen
 import com.example.offlinegpt.ui.chat.ChatDetailScreen
 import com.example.offlinegpt.ui.chat.ChatListScreen
 import com.example.offlinegpt.ui.chat.ChatViewModel
@@ -95,6 +96,7 @@ class MainActivity : ComponentActivity() {
                         HomeScreen(
                             onLogout = { authViewModel.onLogoutClick() },
                             onNavigateToChats = { navController.navigate("chat_list") },
+                            onNavigateToAIWorkflow = { navController.navigate("ai_workflow") },
                             onNavigateToRag = { navController.navigate("chat_rag") },
                             onNavigateToMbti = { navController.navigate("mbti") },
                             onNavigateToMbtiHistory = { navController.navigate("mbti_history") },
@@ -121,6 +123,11 @@ class MainActivity : ComponentActivity() {
                         ChatDetailScreen(
                             viewModel = chatViewModel,
                             sessionId = sessionId,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("ai_workflow") {
+                        AIWorkFlowScreen(
                             onBack = { navController.popBackStack() }
                         )
                     }
@@ -197,6 +204,7 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(
     onLogout: () -> Unit,
     onNavigateToChats: () -> Unit,
+    onNavigateToAIWorkflow: () -> Unit,
     onNavigateToRag: () -> Unit,
     onNavigateToMbti: () -> Unit,
     onNavigateToMbtiHistory: () -> Unit,
@@ -235,6 +243,9 @@ fun HomeScreen(
         if (chatViewModel.checkIfGemmaModelExist()) {
             Button(onClick = onNavigateToChats, modifier = Modifier.fillMaxWidth()) {
                 Text("GPT Chats")
+            }
+            Button(onClick = onNavigateToAIWorkflow, modifier = Modifier.fillMaxWidth()) {
+                Text("AI Workflow")
             }
         } else {
             Button(onClick = { chatViewModel.downloadGemma4Model() }, modifier = Modifier.fillMaxWidth()) {
