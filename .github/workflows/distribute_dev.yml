@@ -29,7 +29,7 @@ jobs:
           ruby-version: '3.2'
           bundler: 'default' # Uses the modern default bundler packaged with Ruby 3.2
 
-      - name: Update Bundler version in Gemfile.lock
+      - name: Update Bundler and Fastlane Dependencies
         run: |
           bundle update --bundler
           bundle update fastlane
