@@ -32,7 +32,7 @@ jobs:
       - name: Update Bundler and Fastlane Dependencies
         run: |
           bundle update --bundler
-          bundle update fastlane
+          bundle update fastlane fastlane-plugin-firebase_app_distribution
 
       - name: Google Auth
         id: auth
