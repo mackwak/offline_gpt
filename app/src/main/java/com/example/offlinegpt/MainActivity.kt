@@ -245,7 +245,7 @@ fun HomeScreen(
                 Text("GPT Chats")
             }
             Button(onClick = onNavigateToAIWorkflow, modifier = Modifier.fillMaxWidth()) {
-                Text("AI Workflow")
+                Text("AI Agent")
             }
         } else {
             Button(onClick = { chatViewModel.downloadGemma4Model() }, modifier = Modifier.fillMaxWidth()) {
