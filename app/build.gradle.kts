@@ -18,6 +18,9 @@ android {
         versionCode = 20
         versionName = "1.0"
 
+        val hfToken = (project.findProperty("HF_TOKEN") as String?) ?: ""
+        buildConfigField("String", "HF_TOKEN", "\"$hfToken\"")
+
         testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"
     }
 
@@ -66,6 +69,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     configurations.all {

@@ -134,6 +134,7 @@ class WorkflowAgent @Inject constructor(
         // Record user input event
         contextManager.addEvent(AgentEvent.UserInputEvent(message = userPrompt))
 
+        /*
         // Record location event if available
         val loc = locationProvider.getCurrentLocation()
         if (loc != null) {
@@ -146,6 +147,7 @@ class WorkflowAgent @Inject constructor(
                 )
             )
         }
+        */
 
         // Query DB Vector Search (RAG) for initial user prompt context
         if (embeddingEngine.isInitialized()) {

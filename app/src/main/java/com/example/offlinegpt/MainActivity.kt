@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +30,7 @@ import com.example.offlinegpt.ui.chat.AIWorkFlowScreen
 import com.example.offlinegpt.ui.chat.ChatDetailScreen
 import com.example.offlinegpt.ui.chat.ChatListScreen
 import com.example.offlinegpt.ui.chat.ChatViewModel
+import com.example.offlinegpt.ui.chat.GaiaBenchmarkViewModel
 import com.example.offlinegpt.ui.mbti.MbtiScreen
 import com.example.offlinegpt.ui.mbti.MbtiHistoryScreen
 import com.example.offlinegpt.ui.mbti.MbtiViewModel
@@ -217,7 +219,11 @@ fun HomeScreen(
 ) {
     val searchViewModel: TavilyViewModel = hiltViewModel()
     val chatViewModel: ChatViewModel = hiltViewModel()
+    val gaiaViewModel: GaiaBenchmarkViewModel = hiltViewModel()
     val userEmail = authViewModel.userEmail
+    val isGaiaDownloaded by gaiaViewModel.isGaiaDownloaded.collectAsState()
+    val isGaiaDownloading by gaiaViewModel.isGaiaDownloading.collectAsState()
+    val gaiaDownloadStatus by gaiaViewModel.downloadStatus.collectAsState()
 
     LaunchedEffect(Unit) {
         searchViewModel.search("Where is best place to go in Seoul?")
@@ -261,6 +267,28 @@ fun HomeScreen(
             Button(onClick = { chatViewModel.downloadModelFile() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Download Embedding Model")
             }
+        }
+
+        Button(
+            onClick = { gaiaViewModel.downloadGaiaDataset() },
+            enabled = !isGaiaDownloaded && !isGaiaDownloading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                when {
+                    isGaiaDownloaded -> "GAIA Problems Downloaded"
+                    isGaiaDownloading -> "Downloading GAIA Problems..."
+                    else -> "Download GAIA Problems"
+                }
+            )
+        }
+
+        gaiaDownloadStatus?.let { status ->
+            Text(
+                text = status,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         Button(onClick = onNavigateToCalculator, modifier = Modifier.fillMaxWidth()) {

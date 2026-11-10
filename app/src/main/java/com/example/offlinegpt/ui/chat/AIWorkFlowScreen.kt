@@ -32,9 +32,13 @@ import java.util.Locale
 fun AIWorkFlowScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: WorkflowViewModel = hiltViewModel()
+    viewModel: WorkflowViewModel = hiltViewModel(),
+    gaiaViewModel: GaiaBenchmarkViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isGaiaDownloaded by gaiaViewModel.isGaiaDownloaded.collectAsState()
+    val isGaiaBenchmarkRunning by gaiaViewModel.isBenchmarkRunning.collectAsState()
+    val gaiaBenchmarkResult by gaiaViewModel.benchmarkResult.collectAsState()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
@@ -121,6 +125,42 @@ fun AIWorkFlowScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("GAIA Benchmark", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (isGaiaDownloaded) {
+                            "Dataset downloaded. Run quick benchmark on first 5 validation tasks."
+                        } else {
+                            "Download GAIA problems first from Home screen."
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { gaiaViewModel.runGaiaBenchmark(maxQuestions = 10) },
+                        enabled = isGaiaDownloaded && !isGaiaBenchmarkRunning && !uiState.isRunning,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (isGaiaBenchmarkRunning) "Running GAIA Benchmark..." else "Run GAIA Benchmark")
+                    }
+
+                    gaiaBenchmarkResult?.let { result ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Score: ${result.correct}/${result.total} (Accuracy ${(result.accuracy * 100).toInt()}%)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+
             if (uiState.isRunning) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
