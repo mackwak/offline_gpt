@@ -53,12 +53,14 @@ class TavilyViewModel @Inject constructor(
 
 @Singleton
 class TavilyRepository @Inject constructor(
-    private val api: TavilyApiService
+    private val api: TavilyApiService,
+    @Named("TavilyApiKey") private val apiKey: String
 ) {
     suspend fun performSearch(query: String): Result<TavilySearchResponse> {
         return try {
+            val authHeader = if (apiKey.startsWith("Bearer ")) apiKey else "Bearer $apiKey"
             val response = api.search(
-                apiKey = "Bearer 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",
+                apiKey = authHeader,
                 request = TavilySearchRequest(query = query)
             )
             if (response.isSuccessful && response.body() != null) {

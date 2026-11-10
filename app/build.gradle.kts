@@ -21,6 +21,9 @@ android {
         val hfToken = (project.findProperty("HF_TOKEN") as String?) ?: ""
         buildConfigField("String", "HF_TOKEN", "\"$hfToken\"")
 
+        val tavilyApiKey = (project.findProperty("TAVILY_API_KEY") as String?) ?: ""
+        buildConfigField("String", "TAVILY_API_KEY", "\"$tavilyApiKey\"")
+
         testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"
     }
 

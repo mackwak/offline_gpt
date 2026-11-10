@@ -7,8 +7,8 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import jakarta.inject.Named
-import jakarta.inject.Singleton
+import javax.inject.Named
+import javax.inject.Singleton
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -29,8 +29,7 @@ object NetworkModule {
     @Singleton
     @Named("TavilyApiKey")
     fun provideTavilyApiKey(): String {
-        // Ideally fetch this from BuildConfig.TAVILY_API_KEY
-        return "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"
+        return com.example.offlinegpt.BuildConfig.TAVILY_API_KEY
     }
 
     @Provides
