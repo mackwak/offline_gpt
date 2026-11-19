@@ -4,8 +4,10 @@ import android.content.Context
 import android.os.Environment
 import android.util.Log
 import com.example.offlinegpt.data.calculator.CalculatorService
+import com.example.offlinegpt.data.TavilyResult
 import com.example.offlinegpt.data.engine.EmbeddingEngine
 import com.example.offlinegpt.data.engine.LiteRTLMEngine
+import com.example.offlinegpt.data.engine.TavilySearchResponse
 import com.example.offlinegpt.data.engine.TavilyRepository
 import com.example.offlinegpt.data.location.LocationProvider
 import com.example.offlinegpt.data.repository.RagRepository
@@ -20,6 +22,7 @@ import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.min
 
 /**
  * AI Workflow Agent that enforces structured JSON responseFormat,
@@ -36,6 +39,20 @@ class WorkflowAgent @Inject constructor(
     private val tavilyRepository: TavilyRepository,
     private val gson: Gson
 ) {
+    companion object {
+        private const val MAX_WEB_SOURCES = 4
+        private const val MAX_WEB_CONTEXT_CHARS = 1200
+        private const val MAX_SNIPPET_CHARS = 170
+        private const val DUPLICATE_THRESHOLD = 0.72
+        private val PREFERRED_WEB_DOMAINS = setOf(
+            "developer.android.com",
+            "firebase.google.com",
+            "cloud.google.com",
+            "developer.mozilla.org",
+            "nodejs.org"
+        )
+    }
+
     val contextManager = AgentEventContextManager()
 
     suspend fun ensureEngineInitialized() {
@@ -105,7 +122,7 @@ class WorkflowAgent @Inject constructor(
         1. "calculator": performs math calculations. args: { "a": 10, "b": 5, "op": "+" }
         2. "get_location": gets current GPS location and address. args: {}
         3. "get_time": gets current timestamp. args: {}
-        4. "web_search": searches web. args: { "query": "search query" }
+        4. "web_search": searches web. args: { "query": "search query", "mode": "both|compact|summary" }
         
         RULES:
         - Check the EVENT CONTEXT history and RAG DB entries before calling tools again.
@@ -257,18 +274,21 @@ class WorkflowAgent @Inject constructor(
             }
             "web_search" -> {
                 val query = argsMap["query"]?.toString() ?: ""
+                val mode = argsMap["mode"]?.toString()?.lowercase(Locale.getDefault()) ?: "both"
+                val includeCompact = mode == "both" || mode == "compact"
+                val includeSummary = mode == "both" || mode == "summary"
                 tavilyRepository.performSearch(query).fold(
                     onSuccess = { response ->
-                        val summary = if (!response.answer.isNullOrBlank()) "Direct Answer: ${response.answer}\n\n" else ""
-                        val details = response.results.take(3).joinToString("\n\n") { result ->
-                            val snippet = if (result.content.length > 250) result.content.take(250) + "..." else result.content
-                            "Title: ${result.title}\nSnippet: $snippet\nURL: ${result.url}"
-                        }
-                        val searchResultText = "$summary$details"
+                        val compactResult = buildCompactWebSearchResult(
+                            query = query,
+                            response = response,
+                            includeCompact = includeCompact,
+                            includeSummary = includeSummary
+                        )
 
                         // Vectorize web search content and save to Room DB for RAG
                         if (embeddingEngine.isInitialized()) {
-                            ragRepository.ingestWebSearchText(query, searchResultText) { text ->
+                            ragRepository.ingestWebSearchText(query, compactResult) { text ->
                                 embeddingEngine.embed(text)
                             }
                             contextManager.addEvent(
@@ -276,7 +296,7 @@ class WorkflowAgent @Inject constructor(
                             )
                         }
 
-                        searchResultText
+                        compactResult
                     },
                     onFailure = { "Web search failed: ${it.localizedMessage}" }
                 )
@@ -284,6 +304,200 @@ class WorkflowAgent @Inject constructor(
             else -> "Error: Unknown tool $toolName"
         }
     }
+
+    private fun buildCompactWebSearchResult(
+        query: String,
+        response: TavilySearchResponse,
+        includeCompact: Boolean,
+        includeSummary: Boolean
+    ): String {
+        val ranked = response.results
+            .map { result ->
+                val domain = extractDomain(result.url)
+                val domainBoost = if (isPreferredDomain(domain)) 1.5 else 0.0
+                val contentCompleteness = min(result.content.length / 220.0, 1.0)
+                CompactWebResult(
+                    source = result,
+                    domain = domain,
+                    score = result.score + domainBoost + contentCompleteness,
+                    fingerprint = "${result.title} ${result.content}"
+                )
+            }
+            .sortedByDescending { it.score }
+
+        val selected = mutableListOf<CompactWebResult>()
+        val seenCanonicalUrls = mutableSetOf<String>()
+
+        for (candidate in ranked) {
+            if (selected.size >= MAX_WEB_SOURCES) break
+
+            val canonicalUrl = canonicalizeUrl(candidate.source.url)
+            if (canonicalUrl.isNotBlank() && seenCanonicalUrls.contains(canonicalUrl)) continue
+
+            val isNearDuplicate = selected.any { existing ->
+                tokenOverlapRatio(existing.fingerprint, candidate.fingerprint) >= DUPLICATE_THRESHOLD
+            }
+            if (isNearDuplicate) continue
+
+            selected.add(candidate)
+            if (canonicalUrl.isNotBlank()) {
+                seenCanonicalUrls.add(canonicalUrl)
+            }
+        }
+
+        val sb = StringBuilder()
+        sb.append("Web Search Query: \"").append(query).append("\"\n")
+
+        if (includeSummary) {
+            appendSummarySection(sb, response, selected)
+        }
+
+        if (includeCompact) {
+            appendCompactSection(sb, selected, response.results.size)
+        }
+
+        if (!includeSummary && !includeCompact) {
+            appendSummarySection(sb, response, selected)
+            appendCompactSection(sb, selected, response.results.size)
+        }
+
+        val compactText = sb.toString().trim()
+        return if (compactText.length > MAX_WEB_CONTEXT_CHARS) {
+            compactText.take(MAX_WEB_CONTEXT_CHARS) + "..."
+        } else {
+            compactText
+        }
+    }
+
+    private fun appendSummarySection(
+        sb: StringBuilder,
+        response: TavilySearchResponse,
+        selected: List<CompactWebResult>
+    ) {
+        sb.append("Summary:\n")
+        if (!response.answer.isNullOrBlank()) {
+            sb.append("- ").append(compactSnippet(response.answer, 220)).append("\n")
+        }
+
+        selected.take(3).forEach { result ->
+            sb.append("- ")
+                .append(compactSnippet(result.source.content, 140))
+                .append("\n")
+        }
+        sb.append("\n")
+    }
+
+    private fun appendCompactSection(
+        sb: StringBuilder,
+        selected: List<CompactWebResult>,
+        totalResultCount: Int
+    ) {
+        sb.append("Findings:\n")
+        selected.forEachIndexed { index, result ->
+            sb.append(index + 1)
+                .append(". [")
+                .append(result.domain)
+                .append("] ")
+                .append(result.source.title.ifBlank { "Untitled" })
+                .append(" - ")
+                .append(compactSnippet(result.source.content, MAX_SNIPPET_CHARS))
+                .append("\n")
+        }
+
+        sb.append("Sources:\n")
+        selected.forEach { result ->
+            sb.append("- ").append(result.source.url).append("\n")
+        }
+
+        val omittedCount = (totalResultCount - selected.size).coerceAtLeast(0)
+        sb.append("Omitted: ").append(omittedCount).append(" result(s) by dedupe/ranking budget.\n")
+    }
+
+    private val whitespaceRegex = Regex("\\s+")
+    private val sentenceBoundaryRegex = Regex("(?<=[.!?])\\s+")
+
+    private fun compactSnippet(
+        text: String,
+        maxChars: Int,
+        fallback: String = "No snippet available."
+    ): String {
+        if (maxChars <= 0) return ""
+
+        val clean = text.replace(whitespaceRegex, " ").trim()
+        if (clean.isEmpty()) return fallback
+
+        val firstSentence = sentenceBoundaryRegex.split(clean)
+            .firstOrNull()
+            .orEmpty()
+            .ifEmpty { clean }
+
+        if (firstSentence.length <= maxChars) return firstSentence
+
+        val ellipsis = "..."
+        if (maxChars <= ellipsis.length) return firstSentence.take(maxChars)
+
+        val budget = maxChars - ellipsis.length
+        val candidate = firstSentence.take(budget)
+        val wordBoundary = candidate.lastIndexOf(' ')
+
+        // Avoid cutting mid-word if we keep at least 60% of the budget
+        val cutIndex = if (wordBoundary >= (budget * 0.6).toInt()) wordBoundary else budget
+        return candidate.substring(0, cutIndex).trimEnd() + ellipsis
+    }
+
+
+    private fun extractDomain(url: String): String {
+        return try {
+            java.net.URI(url).host?.removePrefix("www.") ?: "unknown"
+        } catch (_: Exception) {
+            "unknown"
+        }
+    }
+
+    private fun isPreferredDomain(domain: String): Boolean {
+        if (domain.isBlank()) return false
+        return PREFERRED_WEB_DOMAINS.any { preferred ->
+            domain == preferred || domain.endsWith(".$preferred")
+        }
+    }
+
+    private fun canonicalizeUrl(url: String): String {
+        return try {
+            val uri = java.net.URI(url)
+            val scheme = uri.scheme ?: "https"
+            val host = uri.host?.lowercase(Locale.getDefault())?.removePrefix("www.").orEmpty()
+            val path = uri.path?.trimEnd('/').orEmpty()
+            "$scheme://$host$path"
+        } catch (_: Exception) {
+            url.trim().lowercase(Locale.getDefault())
+        }
+    }
+
+    private fun tokenOverlapRatio(a: String, b: String): Double {
+        val tokensA = tokenizeForOverlap(a)
+        val tokensB = tokenizeForOverlap(b)
+        if (tokensA.isEmpty() || tokensB.isEmpty()) return 0.0
+
+        val intersection = tokensA.intersect(tokensB).size
+        val minSize = min(tokensA.size, tokensB.size)
+        return if (minSize == 0) 0.0 else intersection.toDouble() / minSize.toDouble()
+    }
+
+    private fun tokenizeForOverlap(text: String): Set<String> {
+        return text.lowercase(Locale.getDefault())
+            .replace(Regex("https?://\\S+"), " ")
+            .replace(Regex("[^a-z0-9\\s]"), " ")
+            .split(Regex("\\s+"))
+            .filter { it.length >= 3 }
+            .toSet()
+    }
+
+    private data class CompactWebResult(
+        val source: TavilyResult,
+        val domain: String,
+        val score: Double,
+        val fingerprint: String
+    )
 
     /**
      * Parses the LLM raw output into AgentResponseFormat JSON schema with robust sanitization and fallback resolution.

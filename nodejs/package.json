@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "compress:web-search": "node ./tools/run-compressor.mjs",
+    "test:web-search-compressor": "node --test ./tools/web-search-compressor.test.mjs"
+  },
   "dependencies": {
     "@simplewebauthn/server": "^14.0.2",
     "firebase-admin": "^14.4.0",
