@@ -127,7 +127,8 @@ class WorkflowAgent @Inject constructor(
         RULES:
         - Check the EVENT CONTEXT history and RAG DB entries before calling tools again.
         - Escape all newlines inside JSON string values as \n.
-        - If the query cannot be answered from local RAG DB context, execute "web_search".
+        - If the query cannot be answered from local RAG DB context, execute "web_search" with args.mode="both".
+        - After web_search, prefer RAG_DB_SEARCH events that contain compact Summary/Findings over repeating web_search.
         - If you have enough info to formulate a final answer, set "action": "COMPLETE" and populate "finalAnswer".
         - Do NOT include any markdown code blocks outside JSON. Output pure valid JSON.
         
@@ -167,20 +168,7 @@ class WorkflowAgent @Inject constructor(
         */
 
         // Query DB Vector Search (RAG) for initial user prompt context
-        if (embeddingEngine.isInitialized()) {
-            try {
-                val queryEmbedding = embeddingEngine.embed(userPrompt)
-                val dbRelevantPages = ragRepository.findRelevantPages(queryEmbedding, topK = 3)
-                if (dbRelevantPages.isNotEmpty()) {
-                    val dbContextStr = dbRelevantPages.joinToString("\n---\n")
-                    contextManager.addEvent(
-                        AgentEvent.SystemStateEvent("RAG_DB_SEARCH", "Retrieved RAG pages from DB:\n$dbContextStr")
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e("WorkflowAgent", "Error retrieving from RAG DB", e)
-            }
-        }
+        refreshRagContextForQuery(userPrompt, eventName = "RAG_DB_SEARCH")
 
         var currentStep = 0
         while (currentStep < maxSteps) {
@@ -294,6 +282,12 @@ class WorkflowAgent @Inject constructor(
                             contextManager.addEvent(
                                 AgentEvent.SystemStateEvent("RAG_WEB_INGESTED", "Saved web search vector embeddings to DB for query: $query")
                             )
+                            refreshRagContextForQuery(
+                                query = query,
+                                eventName = "RAG_DB_SEARCH_AFTER_WEB",
+                                topK = 2,
+                                perPageLimit = 260
+                            )
                         }
 
                         compactResult
@@ -302,6 +296,35 @@ class WorkflowAgent @Inject constructor(
                 )
             }
             else -> "Error: Unknown tool $toolName"
+        }
+    }
+
+    private suspend fun refreshRagContextForQuery(
+        query: String,
+        eventName: String,
+        topK: Int = 3,
+        perPageLimit: Int = 320
+    ) {
+        if (!embeddingEngine.isInitialized() || query.isBlank()) return
+
+        try {
+            val queryEmbedding = embeddingEngine.embed(query)
+            val dbRelevantPages = ragRepository.findRelevantPages(queryEmbedding, topK = topK)
+            if (dbRelevantPages.isEmpty()) return
+
+            val compactPages = dbRelevantPages.mapIndexed { index, page ->
+                val compact = compactSnippet(page, perPageLimit, fallback = "")
+                "[${index + 1}] $compact"
+            }
+
+            contextManager.addEvent(
+                AgentEvent.SystemStateEvent(
+                    eventName,
+                    "Retrieved RAG pages from DB:\n${compactPages.joinToString("\n")}"
+                )
+            )
+        } catch (e: Exception) {
+            Log.e("WorkflowAgent", "Error retrieving from RAG DB", e)
         }
     }
 
