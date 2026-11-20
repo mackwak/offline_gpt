@@ -12,6 +12,10 @@ data class FavoritePlaceEntity(
     val address: String,
     val latitude: Double,
     val longitude: Double,
+    val currentOpeningHours: String? = null,
+    val websiteUri: String? = null,
+    val editorialSummary: String? = null,
+    val generativeSummary: String? = null,
     val embedding: FloatArray,
     val addedAt: Long = System.currentTimeMillis()
 ) {
@@ -26,6 +30,10 @@ data class FavoritePlaceEntity(
         if (address != other.address) return false
         if (latitude != other.latitude) return false
         if (longitude != other.longitude) return false
+        if (currentOpeningHours != other.currentOpeningHours) return false
+        if (websiteUri != other.websiteUri) return false
+        if (editorialSummary != other.editorialSummary) return false
+        if (generativeSummary != other.generativeSummary) return false
         if (!embedding.contentEquals(other.embedding)) return false
         if (addedAt != other.addedAt) return false
         return true
@@ -39,6 +47,10 @@ data class FavoritePlaceEntity(
         result = 31 * result + address.hashCode()
         result = 31 * result + latitude.hashCode()
         result = 31 * result + longitude.hashCode()
+        result = 31 * result + (currentOpeningHours?.hashCode() ?: 0)
+        result = 31 * result + (websiteUri?.hashCode() ?: 0)
+        result = 31 * result + (editorialSummary?.hashCode() ?: 0)
+        result = 31 * result + (generativeSummary?.hashCode() ?: 0)
         result = 31 * result + embedding.contentHashCode()
         result = 31 * result + addedAt.hashCode()
         return result

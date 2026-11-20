@@ -23,6 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import java.net.URLEncoder
 import com.example.offlinegpt.data.engine.TavilyViewModel
 import com.example.offlinegpt.data.mbti.MbtiDescriptions
 import com.example.offlinegpt.ui.auth.AuthViewModel
@@ -108,7 +109,24 @@ class MainActivity : ComponentActivity() {
                             onNavigateToCompass = { navController.navigate("compass") },
                             onNavigateToDiary = { navController.navigate("diary") },
                             onNavigateToWeather = { navController.navigate("weather") },
-                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") }
+                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") },
+                            onNavigateToFavorites = { selectedPlaceId, agentReason ->
+                                val route = buildString {
+                                    append("favorites")
+                                    val params = mutableListOf<String>()
+                                    if (!selectedPlaceId.isNullOrBlank()) {
+                                        params.add("selectedPlaceId=${URLEncoder.encode(selectedPlaceId, "UTF-8")}")
+                                    }
+                                    if (!agentReason.isNullOrBlank()) {
+                                        params.add("agentReason=${URLEncoder.encode(agentReason, "UTF-8")}")
+                                    }
+                                    if (params.isNotEmpty()) {
+                                        append("?")
+                                        append(params.joinToString("&"))
+                                    }
+                                }
+                                navController.navigate(route)
+                            }
                         )
                     }
                     composable("chat_list") {
@@ -191,12 +209,16 @@ class MainActivity : ComponentActivity() {
                     }
 
                     composable(
-                        route = "favorites",
-                    ) {
+                        route = "favorites?selectedPlaceId={selectedPlaceId}&agentReason={agentReason}",
+                    ) { backStackEntry ->
+                        val selectedPlaceId = backStackEntry.arguments?.getString("selectedPlaceId")
+                        val agentReason = backStackEntry.arguments?.getString("agentReason")
                         NearbyPlacesScreen(
-                        onBack = { navController.popBackStack() }, isFavorite = true
-                    )
-
+                            onBack = { navController.popBackStack() },
+                            isFavorite = true,
+                            highlightedPlaceId = selectedPlaceId,
+                            agentReason = agentReason
+                        )
                     }
                 }
             }
@@ -217,6 +239,7 @@ fun HomeScreen(
     onNavigateToDiary: () -> Unit = {},
     onNavigateToWeather: () -> Unit = {},
     onNavigateToNearbyPlaces: () -> Unit = {},
+    onNavigateToFavorites: (String?, String?) -> Unit = { _, _ -> },
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val searchViewModel: TavilyViewModel = hiltViewModel()
@@ -344,9 +367,13 @@ fun HomeScreen(
                             Log.d("MBDI", "Agent reason: ${decision.agentReason}")
                             decision.selected?.let { selected ->
                                 Log.d("MBDI", "Selected: ${selected.place.name}")
+                                onNavigateToFavorites(selected.place.placeId, decision.agentReason)
+                            } ?: run {
+                                onNavigateToFavorites(null, decision.agentReason)
                             }
                         } else {
                             Log.w("MBDI", "No favorite place match available.")
+                            onNavigateToFavorites(null, null)
                         }
                     }
 
@@ -354,9 +381,6 @@ fun HomeScreen(
                 } else {
                     Log.w("MBDI", "No MBTI history found yet.")
                 }
-
-
-            // chatViewModel.pickBestFavoritePlace()
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)

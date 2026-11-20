@@ -41,6 +41,10 @@ data class PlaceItem(
     val address: String,
     val latitude: Double = 37.7749,
     val longitude: Double = -122.4194,
+    val currentOpeningHours: String? = null,
+    val websiteUri: String? = null,
+    val editorialSummary: String? = null,
+    val generativeSummary: String? = null,
     val isFavorite: Boolean = false
 )
 
@@ -194,7 +198,9 @@ class NearbyPlacesViewModel @Inject constructor(
                         category = targetPlace.category,
                         rating = targetPlace.rating,
                         latitude = targetPlace.latitude,
-                        longitude = targetPlace.longitude
+                        longitude = targetPlace.longitude,
+                        editorialSummary = targetPlace.editorialSummary,
+                        generativeSummary = targetPlace.generativeSummary
                     )
                     favoritePlaceDao.insertFavorite(
                         FavoritePlaceEntity(
@@ -205,6 +211,10 @@ class NearbyPlacesViewModel @Inject constructor(
                             address = targetPlace.address,
                             latitude = targetPlace.latitude,
                             longitude = targetPlace.longitude,
+                            currentOpeningHours = targetPlace.currentOpeningHours,
+                            websiteUri = targetPlace.websiteUri,
+                            editorialSummary = targetPlace.editorialSummary,
+                            generativeSummary = targetPlace.generativeSummary,
                             embedding = embedding
                         )
                     )
@@ -214,7 +224,9 @@ class NearbyPlacesViewModel @Inject constructor(
                         category = "Local",
                         rating = 4.5,
                         latitude = _currentLat.value,
-                        longitude = _currentLon.value
+                        longitude = _currentLon.value,
+                        editorialSummary = null,
+                        generativeSummary = null
                     )
                     favoritePlaceDao.insertFavorite(
                         FavoritePlaceEntity(
@@ -225,6 +237,10 @@ class NearbyPlacesViewModel @Inject constructor(
                             address = "Saved Location",
                             latitude = _currentLat.value,
                             longitude = _currentLon.value,
+                            currentOpeningHours = null,
+                            websiteUri = null,
+                            editorialSummary = null,
+                            generativeSummary = null,
                             embedding = embedding
                         )
                     )
@@ -238,9 +254,21 @@ class NearbyPlacesViewModel @Inject constructor(
         category: String,
         rating: Double,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        editorialSummary: String?,
+        generativeSummary: String?
     ): FloatArray = withContext(Dispatchers.IO) {
-        val embeddingText = "name: $name, category: $category, rating: $rating, latitude: $latitude, longitude: $longitude"
+        val embeddingText = buildString {
+            append("name: $name, category: $category, rating: $rating, latitude: $latitude, longitude: $longitude")
+            editorialSummary?.takeIf { it.isNotBlank() }?.let {
+                append(", editorialSummary: ")
+                append(it)
+            }
+            generativeSummary?.takeIf { it.isNotBlank() }?.let {
+                append(", generativeSummary: ")
+                append(it)
+            }
+        }
 
         ensureEmbeddingEngineInitializedIfPossible()
         if (!embeddingEngine.isInitialized()) {
@@ -376,7 +404,7 @@ class NearbyPlacesViewModel @Inject constructor(
             conn.setRequestProperty("X-Goog-Api-Key", apiKey)
             conn.setRequestProperty(
                 "X-Goog-FieldMask",
-                "places.id,places.displayName,places.primaryType,places.rating,places.formattedAddress,places.location"
+                "places.id,places.displayName,places.primaryType,places.rating,places.formattedAddress,places.location,places.currentOpeningHours,places.websiteUri,places.editorialSummary,places.generativeSummary"
             )
             conn.setRequestProperty("X-Android-Cert", "37769772F689AEB9C03018A23636E493C2F1D60E")
             conn.setRequestProperty("X-Android-Package", context.packageName)
@@ -432,6 +460,20 @@ class NearbyPlacesViewModel @Inject constructor(
                 val locationObj = item.optJSONObject("location")
                 val placeLat = locationObj?.optDouble("latitude", lat) ?: lat
                 val placeLon = locationObj?.optDouble("longitude", lon) ?: lon
+                val websiteUri = item.optString("websiteUri", "").takeIf { it.isNotBlank() }
+                val currentOpeningHoursObj = item.optJSONObject("currentOpeningHours")
+                val currentOpeningHours = currentOpeningHoursObj
+                    ?.optJSONArray("weekdayDescriptions")
+                    ?.let { descriptions ->
+                        buildList {
+                            for (j in 0 until descriptions.length()) {
+                                val dayDescription = descriptions.optString(j)
+                                if (dayDescription.isNotBlank()) add(dayDescription)
+                            }
+                        }.takeIf { it.isNotEmpty() }?.joinToString("\n")
+                    }
+                val editorialSummary = extractSummaryText(item, "editorialSummary")
+                val generativeSummary = extractSummaryText(item, "generativeSummary")
 
                 val distanceStr = calculateDistanceString(userLocation, placeLat, placeLon)
 
@@ -445,6 +487,10 @@ class NearbyPlacesViewModel @Inject constructor(
                         address = address,
                         latitude = placeLat,
                         longitude = placeLon,
+                        currentOpeningHours = currentOpeningHours,
+                        websiteUri = websiteUri,
+                        editorialSummary = editorialSummary,
+                        generativeSummary = generativeSummary,
                         isFavorite = favoritesSet.contains(id)
                     )
                 )
@@ -523,6 +569,24 @@ class NearbyPlacesViewModel @Inject constructor(
             }
         }
         return "Restaurant"
+    }
+
+    private fun extractSummaryText(item: JSONObject, summaryKey: String): String? {
+        val summaryObj = item.optJSONObject(summaryKey) ?: return null
+        val directText = summaryObj.optString("text", "").takeIf { it.isNotBlank() }
+        if (directText != null) return directText
+
+        val overviewText = summaryObj
+            .optJSONObject("overview")
+            ?.optString("text", "")
+            ?.takeIf { it.isNotBlank() }
+        if (overviewText != null) return overviewText
+
+        val descriptionText = summaryObj
+            .optJSONObject("description")
+            ?.optString("text", "")
+            ?.takeIf { it.isNotBlank() }
+        return descriptionText
     }
 
     private fun getFallbackPlaces(baseLat: Double = 37.7749, baseLon: Double = -122.4194): List<PlaceItem> {

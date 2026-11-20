@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
@@ -27,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.MapsInitializer
@@ -34,6 +37,10 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
+import java.net.URLDecoder
+
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.filled.Info
 
 enum class PlacesViewMode {
     LIST, MAP
@@ -44,6 +51,8 @@ enum class PlacesViewMode {
 fun NearbyPlacesScreen(
     onBack: () -> Unit,
     isFavorite: Boolean = false,
+    highlightedPlaceId: String? = null,
+    agentReason: String? = null,
     viewModel: NearbyPlacesViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -57,6 +66,27 @@ fun NearbyPlacesScreen(
 
     var viewMode by remember { mutableStateOf(PlacesViewMode.LIST) }
     var selectedPlace by remember { mutableStateOf<PlaceItem?>(null) }
+    var showReasonDialog by remember(agentReason) { mutableStateOf(!agentReason.isNullOrBlank()) }
+    val listState = rememberLazyListState()
+    val decodedAgentReason = remember(agentReason) {
+        agentReason
+            ?.let { raw -> runCatching { URLDecoder.decode(raw, Charsets.UTF_8.name()) }.getOrDefault(raw) }
+            ?.replace('+', ' ')
+            .orEmpty()
+    }
+    val highlightedPlace = (uiState as? PlacesUiState.Success)
+        ?.places
+        ?.firstOrNull { !highlightedPlaceId.isNullOrBlank() && it.id == highlightedPlaceId }
+
+    LaunchedEffect(uiState, highlightedPlaceId) {
+        val state = uiState
+        if (state is PlacesUiState.Success && !highlightedPlaceId.isNullOrBlank()) {
+            val index = state.places.indexOfFirst { it.id == highlightedPlaceId }
+            if (index >= 0) {
+                listState.animateScrollToItem(index)
+            }
+        }
+    }
 
     val categories = listOf("All", "Cafe", "Restaurant", "Bakery", "Park")
 
@@ -85,8 +115,97 @@ fun NearbyPlacesScreen(
         }.onFailure {
             cameraPositionState.position = CameraPosition.fromLatLngZoom(LatLng(currentLat, currentLon), 14f)
         }
+    }
 
+    if (showReasonDialog && !agentReason.isNullOrBlank()) {
+        Dialog(
+            onDismissRequest = { showReasonDialog = false }
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "AI Recommendation",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(onClick = { showReasonDialog = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
 
+                    Text(
+                        text = decodedAgentReason,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    highlightedPlace?.let { place ->
+                        HorizontalDivider()
+                        Text(
+                            text = place.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+
+                        place.generativeSummary?.takeIf { it.isNotBlank() }?.let { summary ->
+                            Text(
+                                text = "AI Summary",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = summary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        place.editorialSummary?.takeIf { it.isNotBlank() }?.let { summary ->
+                            Text(
+                                text = "Editorial Summary",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = summary,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    val url = place.websiteUri
+                                        ?: "https://www.google.com/search?q=${Uri.encode(place.name + " " + place.address)}"
+                                    launchWebUrl(context, url)
+                                }
+                            ) {
+                                Text("Open Web")
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Scaffold(
@@ -98,20 +217,17 @@ fun NearbyPlacesScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
-                actions = {/*
-                    FilterChip(
-                        selected = isFavoritesOnly,
-                        onClick = { viewModel.toggleGlobalFavoritesFilter() },
-                        label = { Text("Favorites") },
-                        leadingIcon = {
+                actions = {
+                    if (!agentReason.isNullOrBlank()) {
+                        IconButton(onClick = { showReasonDialog = true }) {
                             Icon(
-                                imageVector = if (isFavoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                contentDescription = "Favorites Only",
-                                modifier = Modifier.size(18.dp)
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Show AI Recommendation Reason",
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
-                    )
-*/
+                    }
+
                     Spacer(modifier = Modifier.width(4.dp))
 
                     // View Mode Switcher (List vs Map)
@@ -391,10 +507,15 @@ fun NearbyPlacesScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(state.places, key = { it.id }) { place ->
+                                    val isHighlighted = highlightedPlaceId != null && place.id == highlightedPlaceId
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                            containerColor = if (isHighlighted) {
+                                                MaterialTheme.colorScheme.primaryContainer
+                                            } else {
+                                                MaterialTheme.colorScheme.surfaceVariant
+                                            }
                                         )
                                     ) {
                                         Row(
@@ -410,6 +531,14 @@ fun NearbyPlacesScreen(
                                                     style = MaterialTheme.typography.titleMedium,
                                                     fontWeight = FontWeight.Bold
                                                 )
+                                                if (isHighlighted) {
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = "AI Pick",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 Text(
                                                     text = "${place.address} • ${place.distance}",
@@ -487,3 +616,12 @@ private fun launchNavigationApp(context: Context, place: PlaceItem) {
         context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
     }
 }
+
+private fun launchWebUrl(context: Context, url: String) {
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    }.onFailure {
+        Log.e("NearbyPlacesScreen", "Failed to open web url", it)
+    }
+}
+

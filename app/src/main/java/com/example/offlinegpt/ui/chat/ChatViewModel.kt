@@ -20,6 +20,8 @@ import com.example.offlinegpt.data.engine.TavilyRepository
 import com.example.offlinegpt.data.location.LocationProvider
 import com.example.offlinegpt.data.local.ChatMessage
 import com.example.offlinegpt.data.local.ChatSession
+import com.example.offlinegpt.data.local.DiaryDao
+import com.example.offlinegpt.data.local.DiaryEntry
 import com.example.offlinegpt.data.local.FavoritePlaceDao
 import com.example.offlinegpt.data.local.FavoritePlaceEntity
 import com.example.offlinegpt.data.mbti.MbtiDescriptions
@@ -46,6 +48,7 @@ import javax.inject.Inject
 class ChatViewModel @Inject constructor(
     private val repository: ChatRepository,
     private val ragRepository: RagRepository,
+    private val diaryDao: DiaryDao,
     private val favoritePlaceDao: FavoritePlaceDao,
     private val auth: FirebaseAuth,
     private val locationProvider: LocationProvider,
@@ -55,6 +58,10 @@ class ChatViewModel @Inject constructor(
     private val tavilyRepository: TavilyRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private companion object {
+        const val DEFAULT_DIARY_EMBEDDING_WEIGHT = 0.3f
+    }
 
     data class FavoritePlaceMatch(
         val place: FavoritePlaceEntity,
@@ -107,10 +114,17 @@ class ChatViewModel @Inject constructor(
     private val _topFavoriteMatches = MutableStateFlow<List<FavoritePlaceMatch>>(emptyList())
     val topFavoriteMatches: StateFlow<List<FavoritePlaceMatch>> = _topFavoriteMatches.asStateFlow()
 
+    private val _diaryEmbeddingWeight = MutableStateFlow(DEFAULT_DIARY_EMBEDDING_WEIGHT)
+    val diaryEmbeddingWeight: StateFlow<Float> = _diaryEmbeddingWeight.asStateFlow()
+
     private var activeDownloadId: Long? = null
 
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    fun setDiaryEmbeddingWeight(weight: Float) {
+        _diaryEmbeddingWeight.value = weight.coerceIn(0f, 1f)
     }
 
     fun downloadModelFile(): Long? {
@@ -759,7 +773,9 @@ class ChatViewModel @Inject constructor(
                 if (favorites.isEmpty()) {
                     _bestFavoriteMatch.value = null
                     _topFavoriteMatches.value = emptyList()
-                    onResult?.invoke(emptyList())
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(emptyList())
+                    }
                     return@launch
                 }
 
@@ -767,21 +783,30 @@ class ChatViewModel @Inject constructor(
                     _errorMessage.value = "Embedding model not found. Please download the embedding model first."
                     _bestFavoriteMatch.value = null
                     _topFavoriteMatches.value = emptyList()
-                    onResult?.invoke(emptyList())
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(emptyList())
+                    }
                     return@launch
                 }
 
+                // get the latest diary from room
+                val latestDiary = diaryDao.getLatestDiary()
+
                 val mbtiDescription = MbtiDescriptions.getDescription(mbtiType)
                 val mbtiEmbedding = embeddingEngine.embed("MBTI $mbtiType profile: $mbtiDescription")
+                val diaryEmbedding = latestDiary
+                    ?.let { buildDiaryEmbeddingText(it) }
+                    ?.let { embeddingEngine.embed(it) }
+                val preferenceEmbedding = blendEmbeddings(mbtiEmbedding, diaryEmbedding)
 
                 val candidates = mutableListOf<FavoritePlaceMatch>()
                 for (place in favorites) {
-                    val placeEmbedding = resolvePlaceEmbeddingForComparison(place, mbtiEmbedding.size) ?: run {
+                    val placeEmbedding = resolvePlaceEmbeddingForComparison(place, preferenceEmbedding.size) ?: run {
                         Log.w("ChatViewModel", "Skip place ${place.placeId}: invalid embedding")
                         continue
                     }
 
-                    val score = cosineSimilaritySafe(mbtiEmbedding, placeEmbedding) ?: continue
+                    val score = cosineSimilaritySafe(preferenceEmbedding, placeEmbedding) ?: continue
                     candidates.add(FavoritePlaceMatch(place = place, similarity = score, mbtiType = mbtiType))
                 }
 
@@ -792,13 +817,17 @@ class ChatViewModel @Inject constructor(
 
                 _topFavoriteMatches.value = topMatches
                 _bestFavoriteMatch.value = topMatches.firstOrNull()
-                onResult?.invoke(topMatches)
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(topMatches)
+                }
             } catch (e: Exception) {
                 Log.e("ChatViewModel", "Failed to pick best favorite place", e)
                 _errorMessage.value = "Failed to compare MBTI and favorite embeddings: ${e.localizedMessage}"
                 _bestFavoriteMatch.value = null
                 _topFavoriteMatches.value = emptyList()
-                onResult?.invoke(emptyList())
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(emptyList())
+                }
             }
         }
     }
@@ -811,14 +840,16 @@ class ChatViewModel @Inject constructor(
         pickBestFavoritePlace(mbtiType = mbtiType, topK = topK) { topMatches ->
             viewModelScope.launch(Dispatchers.IO) {
                 if (topMatches.isEmpty()) {
-                    onResult?.invoke(
-                        FavoritePlaceDecision(
-                            selected = null,
-                            topCandidates = emptyList(),
-                            agentReason = "No favorite candidates available.",
-                            locationWeatherSummary = "Location/weather unavailable"
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(
+                            FavoritePlaceDecision(
+                                selected = null,
+                                topCandidates = emptyList(),
+                                agentReason = "No favorite candidates available.",
+                                locationWeatherSummary = "Location/weather unavailable"
+                            )
                         )
-                    )
+                    }
                     return@launch
                 }
 
@@ -829,14 +860,16 @@ class ChatViewModel @Inject constructor(
 
                 _bestFavoriteMatch.value = selected
 
-                onResult?.invoke(
-                    FavoritePlaceDecision(
-                        selected = selected,
-                        topCandidates = topMatches,
-                        agentReason = agentAnswer,
-                        locationWeatherSummary = contextSummary
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(
+                        FavoritePlaceDecision(
+                            selected = selected,
+                            topCandidates = topMatches,
+                            agentReason = agentAnswer,
+                            locationWeatherSummary = contextSummary
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -943,6 +976,21 @@ class ChatViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.e("ChatViewModel", "Failed to refresh embedding for place ${place.placeId}", e)
             null
+        }
+    }
+
+    private fun buildDiaryEmbeddingText(entry: DiaryEntry): String {
+        val contentSnippet = entry.content.take(800)
+        return "diary title: ${entry.title}, mood: ${entry.mood}, content: $contentSnippet"
+    }
+
+    private fun blendEmbeddings(primary: FloatArray, secondary: FloatArray?): FloatArray {
+        if (secondary == null || primary.size != secondary.size) return primary
+
+        val diaryWeight = _diaryEmbeddingWeight.value
+        val primaryWeight = 1f - diaryWeight
+        return FloatArray(primary.size) { i ->
+            (primary[i] * primaryWeight) + (secondary[i] * diaryWeight)
         }
     }
 
