@@ -3,9 +3,11 @@ package com.example.offlinegpt.ui.places
 import android.content.Context
 import android.location.Geocoder
 import android.location.Location
+import android.os.Environment
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.offlinegpt.data.engine.EmbeddingEngine
 import com.example.offlinegpt.data.local.FavoritePlaceDao
 import com.example.offlinegpt.data.local.FavoritePlaceEntity
 import com.example.offlinegpt.data.location.LocationProvider
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.*
@@ -51,11 +54,13 @@ sealed class PlacesUiState {
 class NearbyPlacesViewModel @Inject constructor(
     private val locationProvider: LocationProvider,
     private val favoritePlaceDao: FavoritePlaceDao,
+    private val embeddingEngine: EmbeddingEngine,
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private companion object {
         const val DEFAULT_PLACES_API_KEY = "AIzaSyAQmeB6_St_i76_4zpLBKOP5EWaWIl2hnY"
+        const val EMBEDDING_MODEL_FILE_NAME = "universal_sentence_encoder.tflite"
     }
 
     private val _uiState = MutableStateFlow<PlacesUiState>(PlacesUiState.Loading)
@@ -184,6 +189,13 @@ class NearbyPlacesViewModel @Inject constructor(
             } else {
                 val targetPlace = allFetchedPlaces.find { it.id == placeId }
                 if (targetPlace != null) {
+                    val embedding = buildPlaceEmbedding(
+                        name = targetPlace.name,
+                        category = targetPlace.category,
+                        rating = targetPlace.rating,
+                        latitude = targetPlace.latitude,
+                        longitude = targetPlace.longitude
+                    )
                     favoritePlaceDao.insertFavorite(
                         FavoritePlaceEntity(
                             placeId = targetPlace.id,
@@ -192,10 +204,18 @@ class NearbyPlacesViewModel @Inject constructor(
                             rating = targetPlace.rating,
                             address = targetPlace.address,
                             latitude = targetPlace.latitude,
-                            longitude = targetPlace.longitude
+                            longitude = targetPlace.longitude,
+                            embedding = embedding
                         )
                     )
                 } else {
+                    val embedding = buildPlaceEmbedding(
+                        name = "Favorite Place",
+                        category = "Local",
+                        rating = 4.5,
+                        latitude = _currentLat.value,
+                        longitude = _currentLon.value
+                    )
                     favoritePlaceDao.insertFavorite(
                         FavoritePlaceEntity(
                             placeId = placeId,
@@ -204,11 +224,71 @@ class NearbyPlacesViewModel @Inject constructor(
                             rating = 4.5,
                             address = "Saved Location",
                             latitude = _currentLat.value,
-                            longitude = _currentLon.value
+                            longitude = _currentLon.value,
+                            embedding = embedding
                         )
                     )
                 }
             }
+        }
+    }
+
+    private suspend fun buildPlaceEmbedding(
+        name: String,
+        category: String,
+        rating: Double,
+        latitude: Double,
+        longitude: Double
+    ): FloatArray = withContext(Dispatchers.IO) {
+        val embeddingText = "name: $name, category: $category, rating: $rating, latitude: $latitude, longitude: $longitude"
+
+        ensureEmbeddingEngineInitializedIfPossible()
+        if (!embeddingEngine.isInitialized()) {
+            return@withContext fallbackNumericEmbedding(name, category, rating, latitude, longitude)
+        }
+
+        return@withContext try {
+            embeddingEngine.embed(embeddingText)
+        } catch (e: Exception) {
+            Log.e("NearbyPlacesViewModel", "Failed to embed place metadata", e)
+            fallbackNumericEmbedding(name, category, rating, latitude, longitude)
+        }
+    }
+
+    private fun fallbackNumericEmbedding(
+        name: String,
+        category: String,
+        rating: Double,
+        latitude: Double,
+        longitude: Double
+    ): FloatArray {
+        return floatArrayOf(
+            normalizedHash(name),
+            normalizedHash(category),
+            rating.toFloat(),
+            latitude.toFloat(),
+            longitude.toFloat()
+        )
+    }
+
+    private fun normalizedHash(text: String): Float {
+        val hash = text.trim().lowercase(Locale.getDefault()).hashCode()
+        return hash / Int.MAX_VALUE.toFloat()
+    }
+
+    private suspend fun ensureEmbeddingEngineInitializedIfPossible() = withContext(Dispatchers.IO) {
+        if (embeddingEngine.isInitialized()) return@withContext
+
+        try {
+            val modelFile = File(
+                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                EMBEDDING_MODEL_FILE_NAME
+            )
+            if (modelFile.exists()) {
+                embeddingEngine.initialize(modelFile.absolutePath)
+            }
+        } catch (e: Exception) {
+            Log.e("NearbyPlacesViewModel", "Embedding engine initialization failed", e)
         }
     }
 

@@ -2,6 +2,7 @@ package com.example.offlinegpt
 
 import android.Manifest
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -23,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.offlinegpt.data.engine.TavilyViewModel
+import com.example.offlinegpt.data.mbti.MbtiDescriptions
 import com.example.offlinegpt.ui.auth.AuthViewModel
 import com.example.offlinegpt.ui.auth.LoginScreen
 import com.example.offlinegpt.ui.auth.SignupScreen
@@ -224,6 +226,7 @@ fun HomeScreen(
     val isGaiaDownloaded by gaiaViewModel.isGaiaDownloaded.collectAsState()
     val isGaiaDownloading by gaiaViewModel.isGaiaDownloading.collectAsState()
     val gaiaDownloadStatus by gaiaViewModel.downloadStatus.collectAsState()
+    val mbtiViewModel: MbtiViewModel = hiltViewModel()
 
     LaunchedEffect(Unit) {
         searchViewModel.search("Where is best place to go in Seoul?")
@@ -321,6 +324,46 @@ fun HomeScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+
+        Button(
+            onClick = {
+                val lastHistory = mbtiViewModel.history.value.lastOrNull()
+                if (lastHistory != null) {
+                    Log.d("MBDI", "mbtiType: ${lastHistory.mbtiType}")
+                    Log.d("MBDI", "mbtiType: ${MbtiDescriptions.getDescription(lastHistory.mbtiType)}")
+                    chatViewModel.pickBestFavoritePlaceByLocationAndWeather(lastHistory.mbtiType, topK = 3) { decision ->
+                        if (decision.topCandidates.isNotEmpty()) {
+                            decision.topCandidates.forEachIndexed { index, match ->
+                                Log.d(
+                                    "MBDI",
+                                    "Top ${index + 1} for ${match.mbtiType}: ${match.place.name} (similarity=${match.similarity})"
+                                )
+                            }
+                            Log.d("MBDI", "Context: ${decision.locationWeatherSummary}")
+                            Log.d("MBDI", "Agent reason: ${decision.agentReason}")
+                            decision.selected?.let { selected ->
+                                Log.d("MBDI", "Selected: ${selected.place.name}")
+                            }
+                        } else {
+                            Log.w("MBDI", "No favorite place match available.")
+                        }
+                    }
+
+                    // MbtiDescriptions.getDescription(lastHistory.mbtiType)
+                } else {
+                    Log.w("MBDI", "No MBTI history found yet.")
+                }
+
+
+            // chatViewModel.pickBestFavoritePlace()
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+        ) {
+            Text("Pick the best favorite place")
+        }
+
 
         Button(
             onClick = onLogout,

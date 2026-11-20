@@ -12,5 +12,35 @@ data class FavoritePlaceEntity(
     val address: String,
     val latitude: Double,
     val longitude: Double,
+    val embedding: FloatArray,
     val addedAt: Long = System.currentTimeMillis()
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        other as FavoritePlaceEntity
+        if (placeId != other.placeId) return false
+        if (name != other.name) return false
+        if (category != other.category) return false
+        if (rating != other.rating) return false
+        if (address != other.address) return false
+        if (latitude != other.latitude) return false
+        if (longitude != other.longitude) return false
+        if (!embedding.contentEquals(other.embedding)) return false
+        if (addedAt != other.addedAt) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = placeId.hashCode()
+        result = 31 * result + name.hashCode()
+        result = 31 * result + category.hashCode()
+        result = 31 * result + rating.hashCode()
+        result = 31 * result + address.hashCode()
+        result = 31 * result + latitude.hashCode()
+        result = 31 * result + longitude.hashCode()
+        result = 31 * result + embedding.contentHashCode()
+        result = 31 * result + addedAt.hashCode()
+        return result
+    }
+}

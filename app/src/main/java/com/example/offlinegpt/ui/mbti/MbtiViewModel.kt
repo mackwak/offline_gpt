@@ -8,15 +8,29 @@ import com.example.offlinegpt.data.mbti.MbtiTrait
 import com.example.offlinegpt.data.repository.MbtiRepository
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
+@OptIn(ExperimentalCoroutinesApi::class)
 class MbtiViewModel @Inject constructor(
     private val repository: MbtiRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
+    private val userEmailFlow: StateFlow<String> = callbackFlow {
+        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            trySend(firebaseAuth.currentUser?.email ?: "anonymous")
+        }
+        auth.addAuthStateListener(listener)
+        trySend(auth.currentUser?.email ?: "anonymous")
+        awaitClose { auth.removeAuthStateListener(listener) }
+    }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, auth.currentUser?.email ?: "anonymous")
+
 
     private val questions = repository.getQuestions()
     private val answers = mutableMapOf<Int, Int>() // questionId to score (-2 to 2)
@@ -27,11 +41,12 @@ class MbtiViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<MbtiUiState>(MbtiUiState.Assessment)
     val uiState: StateFlow<MbtiUiState> = _uiState.asStateFlow()
 
-    val history: StateFlow<List<MBTIResult>> = repository.getHistory(userEmail)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val history: StateFlow<List<MBTIResult>> = userEmailFlow
+        .flatMapLatest { email -> repository.getHistory(email) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val userEmail: String
-        get() = auth.currentUser?.email ?: "anonymous"
+        get() = userEmailFlow.value
 
     val currentQuestion: StateFlow<MBTIQuestion?> = _currentQuestionIndex
         .map { index -> if (index < questions.size) questions[index] else null }

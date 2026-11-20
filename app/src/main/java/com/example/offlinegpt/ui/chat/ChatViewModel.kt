@@ -20,6 +20,9 @@ import com.example.offlinegpt.data.engine.TavilyRepository
 import com.example.offlinegpt.data.location.LocationProvider
 import com.example.offlinegpt.data.local.ChatMessage
 import com.example.offlinegpt.data.local.ChatSession
+import com.example.offlinegpt.data.local.FavoritePlaceDao
+import com.example.offlinegpt.data.local.FavoritePlaceEntity
+import com.example.offlinegpt.data.mbti.MbtiDescriptions
 import com.example.offlinegpt.data.repository.ChatRepository
 import com.example.offlinegpt.data.repository.RagRepository
 import com.example.offlinegpt.util.tts.TextToSpeechManager
@@ -31,6 +34,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -42,6 +46,7 @@ import javax.inject.Inject
 class ChatViewModel @Inject constructor(
     private val repository: ChatRepository,
     private val ragRepository: RagRepository,
+    private val favoritePlaceDao: FavoritePlaceDao,
     private val auth: FirebaseAuth,
     private val locationProvider: LocationProvider,
     private val ttsManager: TextToSpeechManager,
@@ -50,6 +55,19 @@ class ChatViewModel @Inject constructor(
     private val tavilyRepository: TavilyRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    data class FavoritePlaceMatch(
+        val place: FavoritePlaceEntity,
+        val similarity: Float,
+        val mbtiType: String
+    )
+
+    data class FavoritePlaceDecision(
+        val selected: FavoritePlaceMatch?,
+        val topCandidates: List<FavoritePlaceMatch>,
+        val agentReason: String,
+        val locationWeatherSummary: String
+    )
 
     private val _searchResults = MutableStateFlow<List<String>>(emptyList())
     val searchResults: StateFlow<List<String>> = _searchResults
@@ -82,6 +100,12 @@ class ChatViewModel @Inject constructor(
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _bestFavoriteMatch = MutableStateFlow<FavoritePlaceMatch?>(null)
+    val bestFavoriteMatch: StateFlow<FavoritePlaceMatch?> = _bestFavoriteMatch.asStateFlow()
+
+    private val _topFavoriteMatches = MutableStateFlow<List<FavoritePlaceMatch>>(emptyList())
+    val topFavoriteMatches: StateFlow<List<FavoritePlaceMatch>> = _topFavoriteMatches.asStateFlow()
 
     private var activeDownloadId: Long? = null
 
@@ -722,6 +746,233 @@ class ChatViewModel @Inject constructor(
                 _currentStreamingText.value = "Error: ${e.localizedMessage}"
             }
         }
+    }
+
+    fun pickBestFavoritePlace(
+        mbtiType: String,
+        topK: Int = 3,
+        onResult: ((List<FavoritePlaceMatch>) -> Unit)? = null
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val favorites = favoritePlaceDao.getAllFavoritePlaces().first()
+                if (favorites.isEmpty()) {
+                    _bestFavoriteMatch.value = null
+                    _topFavoriteMatches.value = emptyList()
+                    onResult?.invoke(emptyList())
+                    return@launch
+                }
+
+                if (!ensureEmbeddingEngineReady()) {
+                    _errorMessage.value = "Embedding model not found. Please download the embedding model first."
+                    _bestFavoriteMatch.value = null
+                    _topFavoriteMatches.value = emptyList()
+                    onResult?.invoke(emptyList())
+                    return@launch
+                }
+
+                val mbtiDescription = MbtiDescriptions.getDescription(mbtiType)
+                val mbtiEmbedding = embeddingEngine.embed("MBTI $mbtiType profile: $mbtiDescription")
+
+                val candidates = mutableListOf<FavoritePlaceMatch>()
+                for (place in favorites) {
+                    val placeEmbedding = resolvePlaceEmbeddingForComparison(place, mbtiEmbedding.size) ?: run {
+                        Log.w("ChatViewModel", "Skip place ${place.placeId}: invalid embedding")
+                        continue
+                    }
+
+                    val score = cosineSimilaritySafe(mbtiEmbedding, placeEmbedding) ?: continue
+                    candidates.add(FavoritePlaceMatch(place = place, similarity = score, mbtiType = mbtiType))
+                }
+
+                val safeTopK = topK.coerceAtLeast(1)
+                val topMatches = candidates
+                    .sortedByDescending { it.similarity }
+                    .take(safeTopK)
+
+                _topFavoriteMatches.value = topMatches
+                _bestFavoriteMatch.value = topMatches.firstOrNull()
+                onResult?.invoke(topMatches)
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Failed to pick best favorite place", e)
+                _errorMessage.value = "Failed to compare MBTI and favorite embeddings: ${e.localizedMessage}"
+                _bestFavoriteMatch.value = null
+                _topFavoriteMatches.value = emptyList()
+                onResult?.invoke(emptyList())
+            }
+        }
+    }
+
+    fun pickBestFavoritePlaceByLocationAndWeather(
+        mbtiType: String,
+        topK: Int = 3,
+        onResult: ((FavoritePlaceDecision) -> Unit)? = null
+    ) {
+        pickBestFavoritePlace(mbtiType = mbtiType, topK = topK) { topMatches ->
+            viewModelScope.launch(Dispatchers.IO) {
+                if (topMatches.isEmpty()) {
+                    onResult?.invoke(
+                        FavoritePlaceDecision(
+                            selected = null,
+                            topCandidates = emptyList(),
+                            agentReason = "No favorite candidates available.",
+                            locationWeatherSummary = "Location/weather unavailable"
+                        )
+                    )
+                    return@launch
+                }
+
+                val contextSummary = getLocationWeatherSummary()
+                val decisionPrompt = buildFavoriteDecisionPrompt(mbtiType, contextSummary, topMatches)
+                val agentAnswer = getCurrentResponse(decisionPrompt)
+                val selected = parseSelectedCandidate(agentAnswer, topMatches) ?: topMatches.firstOrNull()
+
+                _bestFavoriteMatch.value = selected
+
+                onResult?.invoke(
+                    FavoritePlaceDecision(
+                        selected = selected,
+                        topCandidates = topMatches,
+                        agentReason = agentAnswer,
+                        locationWeatherSummary = contextSummary
+                    )
+                )
+            }
+        }
+    }
+
+    private fun buildFavoriteDecisionPrompt(
+        mbtiType: String,
+        locationWeatherSummary: String,
+        candidates: List<FavoritePlaceMatch>
+    ): String {
+        val candidateText = candidates.mapIndexed { index, match ->
+            "${index + 1}. ${match.place.name} (${match.place.category}) | rating=${match.place.rating}, address=${match.place.address}, embeddingSimilarity=${"%.4f".format(match.similarity)}"
+        }.joinToString("\n")
+
+        return """
+            You are a local trip planning agent.
+            Select exactly ONE best place among 3 candidates.
+
+            User MBTI: $mbtiType
+            Current location/weather: $locationWeatherSummary
+
+            Candidates:
+            $candidateText
+
+            Output format:
+            CHOICE: <1|2|3>
+            REASON: <short reason considering weather + location + MBTI>
+        """.trimIndent()
+    }
+
+    private fun parseSelectedCandidate(
+        agentAnswer: String,
+        candidates: List<FavoritePlaceMatch>
+    ): FavoritePlaceMatch? {
+        val match = Regex("""CHOICE\s*:\s*([1-9])""", RegexOption.IGNORE_CASE).find(agentAnswer)
+        val parsedIndex = match?.groupValues?.getOrNull(1)?.toIntOrNull()
+        if (parsedIndex != null && parsedIndex in 1..candidates.size) {
+            return candidates[parsedIndex - 1]
+        }
+
+        // Fallback: try to find first plain number in answer.
+        val fallback = Regex("""\b([1-9])\b""").find(agentAnswer)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        if (fallback != null && fallback in 1..candidates.size) {
+            return candidates[fallback - 1]
+        }
+
+        return null
+    }
+
+    private suspend fun getLocationWeatherSummary(): String = withContext(Dispatchers.IO) {
+        val location = locationProvider.getCurrentLocation()
+        val lat = location?.latitude ?: 37.7749
+        val lon = location?.longitude ?: -122.4194
+        val address = if (location != null) {
+            locationProvider.getAddressFromLocation(location)
+        } else {
+            "Unknown current address"
+        }
+
+        return@withContext try {
+            val urlString = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current_weather=true&timezone=auto"
+            val responseText = URL(urlString).readText()
+            val json = JSONObject(responseText)
+            val currentWeather = json.getJSONObject("current_weather")
+            val temp = currentWeather.optDouble("temperature", Double.NaN)
+            val wind = currentWeather.optDouble("windspeed", Double.NaN)
+            val code = currentWeather.optInt("weathercode", -1)
+            val weatherLabel = weatherCodeToText(code)
+
+            "address=$address, lat=$lat, lon=$lon, weather=$weatherLabel, temp=${temp.toInt()}C, wind=${wind.toInt()}km/h"
+        } catch (e: Exception) {
+            "address=$address, lat=$lat, lon=$lon, weather=unavailable"
+        }
+    }
+
+    private fun weatherCodeToText(code: Int): String {
+        return when (code) {
+            0 -> "Clear Sky"
+            1, 2 -> "Partly Cloudy"
+            3 -> "Overcast"
+            45, 48 -> "Foggy"
+            51, 53, 55, 61, 63, 65 -> "Rain"
+            71, 73, 75 -> "Snow"
+            80, 81, 82 -> "Heavy Rain"
+            95, 96, 99 -> "Thunderstorm"
+            else -> "Unknown"
+        }
+    }
+
+    private suspend fun resolvePlaceEmbeddingForComparison(
+        place: FavoritePlaceEntity,
+        expectedSize: Int
+    ): FloatArray? {
+        val current = place.embedding
+        if (current.isNotEmpty() && current.size == expectedSize) {
+            return current
+        }
+
+        // Old favorites may contain fallback vectors with different dimensions; re-embed using semantic text.
+        return try {
+            val semanticText = "name: ${place.name}, category: ${place.category}, rating: ${place.rating}, latitude: ${place.latitude}, longitude: ${place.longitude}"
+            val refreshed = embeddingEngine.embed(semanticText)
+            favoritePlaceDao.insertFavorite(place.copy(embedding = refreshed))
+            refreshed
+        } catch (e: Exception) {
+            Log.e("ChatViewModel", "Failed to refresh embedding for place ${place.placeId}", e)
+            null
+        }
+    }
+
+    private suspend fun ensureEmbeddingEngineReady(): Boolean {
+        if (embeddingEngine.isInitialized()) return true
+
+        val embeddingModelFile = File(
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+            "universal_sentence_encoder.tflite"
+        )
+        if (!embeddingModelFile.exists()) return false
+
+        embeddingEngine.initialize(embeddingModelFile.absolutePath)
+        return embeddingEngine.isInitialized()
+    }
+
+    private fun cosineSimilaritySafe(a: FloatArray, b: FloatArray): Float? {
+        if (a.isEmpty() || b.isEmpty() || a.size != b.size) return null
+
+        var dotProduct = 0.0f
+        var normA = 0.0f
+        var normB = 0.0f
+        for (i in a.indices) {
+            dotProduct += a[i] * b[i]
+            normA += a[i] * a[i]
+            normB += b[i] * b[i]
+        }
+
+        if (normA == 0.0f || normB == 0.0f) return null
+        return (dotProduct / (kotlin.math.sqrt(normA) * kotlin.math.sqrt(normB))).coerceIn(-1f, 1f)
     }
 
     override fun onCleared() {
