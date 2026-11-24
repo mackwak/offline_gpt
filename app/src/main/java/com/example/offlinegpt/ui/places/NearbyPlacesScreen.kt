@@ -50,6 +50,7 @@ enum class PlacesViewMode {
 @Composable
 fun NearbyPlacesScreen(
     onBack: () -> Unit,
+    selectedMood: String? = null,
     isFavorite: Boolean = false,
     highlightedPlaceId: String? = null,
     agentReason: String? = null,
@@ -59,7 +60,6 @@ fun NearbyPlacesScreen(
     val locationQuery by viewModel.locationQuery.collectAsState()
     val addressCandidates by viewModel.addressCandidates.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
-    val isFavoritesOnly by viewModel.isFavoritesOnly.collectAsState()
     val currentLat by viewModel.currentLat.collectAsState()
     val currentLon by viewModel.currentLon.collectAsState()
     val uiState by viewModel.uiState.collectAsState()

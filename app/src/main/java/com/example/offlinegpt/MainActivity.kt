@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(
                     navController = navController,
-                    startDestination = "home",
+                    startDestination = "compass",
                     modifier = Modifier.fillMaxSize()
                 ) {
                     composable("login") {
@@ -189,9 +189,27 @@ class MainActivity : ComponentActivity() {
                             onNavigateToMbti = { navController.navigate("mbti") },
                             onNavigateToDiary = { navController.navigate("diary") },
                             onNavigateToFavorites = { navController.navigate("favorites") },
-                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") }
+                            onNavigateToNearbyPlaces = { selectedMood ->
+                                val route = if (selectedMood.isNullOrBlank()) {
+                                    "nearby_places"
+                                } else {
+                                    "nearby_places?selectedMood=${URLEncoder.encode(selectedMood, "UTF-8")}"
+                                }
+                                navController.navigate(route)
+                            }
                         )
                     }
+
+                    composable(
+                        route = "nearby_places?selectedMood={selectedMood}"
+                    ) { backStackEntry ->
+                        val selectedMood = backStackEntry.arguments?.getString("selectedMood")
+                        NearbyPlacesScreen(
+                            onBack = { navController.popBackStack() },
+                            selectedMood = selectedMood // NearbyPlacesScreen 파라미터가 있어야 함
+                        )
+                    }
+
                     composable("diary") {
                         DiaryScreen(
                             onBack = { navController.popBackStack() }

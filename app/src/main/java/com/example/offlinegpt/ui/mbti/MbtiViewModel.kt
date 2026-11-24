@@ -67,6 +67,10 @@ class MbtiViewModel @Inject constructor(
         }
     }
 
+    fun hasMbti(): Boolean {
+        return history.value.isNotEmpty()
+    }
+
     private fun calculateAndSaveResult() {
         val traitScores = mutableMapOf<MbtiTrait, Int>().withDefault { 0 }
         

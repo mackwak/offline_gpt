@@ -29,6 +29,27 @@ class CompassViewModel @Inject constructor(
     private val _isShowDeleteMenuDialog = MutableStateFlow(false)
     val isShowDeleteMenuDialog: StateFlow<Boolean> = _isShowDeleteMenuDialog.asStateFlow()
 
+    private val _isShowMoodDialog = MutableStateFlow(false)
+    val isShowMoodDialog: StateFlow<Boolean> = _isShowMoodDialog.asStateFlow()
+
+    private val _isShowMbtiDialog = MutableStateFlow(false)
+    val isShowMbtiDialog: StateFlow<Boolean> = _isShowMbtiDialog.asStateFlow()
+
+    fun dismissMoodDialog() {
+        _isShowMoodDialog.value = false
+    }
+
+    fun showMoodDialog() {
+        _isShowMoodDialog.value = true
+    }
+
+    fun showMbtiDialog() {
+        _isShowMbtiDialog.value = true
+    }
+
+    fun dismissMbtiDialog() {
+        _isShowMbtiDialog.value = false
+    }
 
     fun showMenuDialog() {
         _isShowMenuDialog.value = true
