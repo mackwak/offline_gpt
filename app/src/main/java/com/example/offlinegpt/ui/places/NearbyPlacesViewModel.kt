@@ -45,7 +45,8 @@ data class PlaceItem(
     val websiteUri: String? = null,
     val editorialSummary: String? = null,
     val generativeSummary: String? = null,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val embedding: FloatArray? = null
 )
 
 sealed class PlacesUiState {
@@ -177,12 +178,18 @@ class NearbyPlacesViewModel @Inject constructor(
 
     fun onCategorySelected(category: String) {
         _selectedCategory.value = category
-        applyFilter()
+
+        viewModelScope.launch {
+            applyFilter()
+        }
+
     }
 
     fun toggleGlobalFavoritesFilter() {
         _isFavoritesOnly.value = !_isFavoritesOnly.value
-        applyFilter()
+        viewModelScope.launch {
+            applyFilter()
+        }
     }
 
     fun toggleFavorite(placeId: String) {
@@ -249,7 +256,7 @@ class NearbyPlacesViewModel @Inject constructor(
         }
     }
 
-    private suspend fun buildPlaceEmbedding(
+    suspend fun buildPlaceEmbedding(
         name: String,
         category: String,
         rating: Double,
@@ -376,7 +383,7 @@ class NearbyPlacesViewModel @Inject constructor(
         }
     }
 
-    private fun applyFilter() {
+    suspend fun applyFilter() {
         val category = _selectedCategory.value
         val favOnly = _isFavoritesOnly.value
 
@@ -391,7 +398,21 @@ class NearbyPlacesViewModel @Inject constructor(
             matchesFavGlobal && matchesCategory
         }
 
-        _uiState.value = PlacesUiState.Success(filtered)
+        val filteredWithEmbedding = mutableListOf<PlaceItem>()
+        for (targetPlace in filtered) {
+            val embedding = buildPlaceEmbedding(
+                name = targetPlace.name,
+                category = targetPlace.category,
+                rating = targetPlace.rating,
+                latitude = targetPlace.latitude,
+                longitude = targetPlace.longitude,
+                editorialSummary = targetPlace.editorialSummary,
+                generativeSummary = targetPlace.generativeSummary
+            )
+            filteredWithEmbedding.add(targetPlace.copy(embedding = embedding))
+        }
+
+        _uiState.value = PlacesUiState.Success(filteredWithEmbedding)
     }
 
     private fun fetchFromNewGooglePlacesApi(lat: Double, lon: Double, apiKey: String, userLocation: Location?): List<PlaceItem> {
@@ -491,7 +512,7 @@ class NearbyPlacesViewModel @Inject constructor(
                         websiteUri = websiteUri,
                         editorialSummary = editorialSummary,
                         generativeSummary = generativeSummary,
-                        isFavorite = favoritesSet.contains(id)
+                        isFavorite = favoritesSet.contains(id),
                     )
                 )
             }

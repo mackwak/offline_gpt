@@ -164,11 +164,6 @@ fun CompassScreen(
             },
             confirmButton = {
 
-                TextButton(onClick = {
-                    viewModel.dismissMoodDialog()
-                }) {
-                    Text("Cancel")
-                }
 
             },
             dismissButton = {

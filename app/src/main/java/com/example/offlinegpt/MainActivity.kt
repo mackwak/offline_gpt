@@ -40,6 +40,7 @@ import com.example.offlinegpt.ui.mbti.MbtiViewModel
 import com.example.offlinegpt.ui.calculator.CalculatorScreen
 import com.example.offlinegpt.ui.compass.CompassScreen
 import com.example.offlinegpt.ui.diary.DiaryScreen
+import com.example.offlinegpt.ui.places.AgentPlacesScreen
 import com.example.offlinegpt.ui.weather.WeatherScreen
 import com.example.offlinegpt.ui.places.NearbyPlacesScreen
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
@@ -204,7 +205,7 @@ class MainActivity : ComponentActivity() {
                         route = "nearby_places?selectedMood={selectedMood}"
                     ) { backStackEntry ->
                         val selectedMood = backStackEntry.arguments?.getString("selectedMood")
-                        NearbyPlacesScreen(
+                        AgentPlacesScreen(
                             onBack = { navController.popBackStack() },
                             selectedMood = selectedMood // NearbyPlacesScreen 파라미터가 있어야 함
                         )

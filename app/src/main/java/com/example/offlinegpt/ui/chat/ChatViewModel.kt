@@ -27,6 +27,7 @@ import com.example.offlinegpt.data.local.FavoritePlaceEntity
 import com.example.offlinegpt.data.mbti.MbtiDescriptions
 import com.example.offlinegpt.data.repository.ChatRepository
 import com.example.offlinegpt.data.repository.RagRepository
+import com.example.offlinegpt.ui.places.PlaceItem
 import com.example.offlinegpt.util.tts.TextToSpeechManager
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -758,6 +759,65 @@ class ChatViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e("ChatViewModel", "PDF ingestion failed", e)
                 _currentStreamingText.value = "Error: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun pickBestFavoritePlaceByMood(
+        mbti: String,
+        mood: String, places: List<PlaceItem>,
+        topK: Int = 3,
+        onResult: ((List<PlaceItem>) -> Unit)? = null
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+
+                if (!ensureEmbeddingEngineReady()) {
+                    _errorMessage.value = "Embedding model not found. Please download the embedding model first."
+                    _bestFavoriteMatch.value = null
+                    _topFavoriteMatches.value = emptyList()
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(emptyList())
+                    }
+                    return@launch
+                }
+
+                // get the latest diary from room
+                val latestDiary = diaryDao.getLatestDiary()
+
+                val moodEmbedding = embeddingEngine.embed("feels $mood")
+                val mbtiDescription = MbtiDescriptions.getDescription(mbti)
+                val mbtiEmbedding = embeddingEngine.embed("MBTI $mbti profile: $mbtiDescription")
+
+
+
+                val preferenceEmbedding = blendEmbeddings(moodEmbedding, mbtiEmbedding)
+
+                val candidates = mutableListOf<PlaceItem>()
+                for (place in places) {
+
+                    val score = cosineSimilaritySafe(preferenceEmbedding, place.embedding!!) ?: continue
+                    candidates.add(place)
+                }
+
+                val safeTopK = topK.coerceAtLeast(1)
+                val topMatches = candidates
+                    .sortedByDescending { it.similarity }
+                    .take(safeTopK)
+
+                _topFavoriteMatches.value = topMatches
+                _bestFavoriteMatch.value = topMatches.firstOrNull()
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(topMatches)
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Failed to pick best favorite place", e)
+                _errorMessage.value = "Failed to compare MBTI and favorite embeddings: ${e.localizedMessage}"
+                _bestFavoriteMatch.value = null
+                _topFavoriteMatches.value = emptyList()
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(emptyList())
+                }
             }
         }
     }
