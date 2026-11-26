@@ -86,14 +86,29 @@ fun AgentPlacesScreen(
             val lastHistory = mbtiViewModel.history.value.lastOrNull()
             if (lastHistory != null) {
 
-                chatViewModel.pickBestFavoritePlaceByMood(lastHistory.mbtiType, selectedMood!!, state.places, topK = 3) { selected ->
+                chatViewModel.pickBestFavoritePlaceByMood(lastHistory.mbtiType, selectedMood!!, state.places, topK = 3) { decision ->
 
-
-                  /*
                     if (decision.topCandidates.isNotEmpty()) {
-
+                        decision.topCandidates.forEachIndexed { index, match ->
+                            Log.d(
+                                "MBDI",
+                                "Top ${index + 1} for ${match.mbtiType}: ${match.place.name} (similarity=${match.similarity})"
+                            )
+                        }
+                        Log.d("MBDI", "Context: ${decision.locationWeatherSummary}")
+                        Log.d("MBDI", "Agent reason: ${decision.agentReason}")
+                        decision.selected?.let { selected ->
+                            Log.d("MBDI", "Selected: ${selected.place.name}")
+                         //   onNavigateToFavorites(selected.place.placeId, decision.agentReason)
+                        } ?: run {
+                         //   onNavigateToFavorites(null, decision.agentReason)
+                        }
+                    } else {
+                        Log.w("MBDI", "No favorite place match available.")
+                     //   onNavigateToFavorites(null, null)
                     }
-*/
+
+
 
                 }
 

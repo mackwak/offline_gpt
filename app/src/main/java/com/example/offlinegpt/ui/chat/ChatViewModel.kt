@@ -768,7 +768,7 @@ class ChatViewModel @Inject constructor(
         mbti: String,
         mood: String, places: List<PlaceItem>,
         topK: Int = 3,
-        onResult: ((List<PlaceItem>) -> Unit)? = null
+        onResult: ((FavoritePlaceDecision) -> Unit)? = null
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -777,9 +777,6 @@ class ChatViewModel @Inject constructor(
                     _errorMessage.value = "Embedding model not found. Please download the embedding model first."
                     _bestFavoriteMatch.value = null
                     _topFavoriteMatches.value = emptyList()
-                    withContext(Dispatchers.Main) {
-                        onResult?.invoke(emptyList())
-                    }
                     return@launch
                 }
 
@@ -805,25 +802,29 @@ class ChatViewModel @Inject constructor(
                     val mm = FavoritePlaceMatch(place = fav, mbtiType = mbti, similarity = score)
                     candidates.add(mm)
                 }
-/*
-                withContext(Dispatchers.Main) {
-                    onResult?.invoke(candidates)
-                }
-*/
+
+                val safeTopK = topK.coerceAtLeast(1)
+                val topMatches = candidates
+                    .sortedByDescending { it.similarity }
+                    .take(safeTopK)
+
                 val contextSummary = getLocationWeatherSummary()
-                val decisionPrompt = buildFavoriteDecisionPrompt(mbti, contextSummary, candidates)
+                val decisionPrompt = buildFavoriteDecisionPrompt(mbti, contextSummary, topMatches)
                 val agentAnswer = getCurrentResponse(decisionPrompt)
-                val selected = parseSelectedCandidate(agentAnswer, candidates) ?: candidates.firstOrNull()
+                val selected = parseSelectedCandidate(agentAnswer, topMatches) ?: topMatches.firstOrNull()
+
+                onResult?.invoke(
+                    FavoritePlaceDecision(
+                        selected = selected,
+                        topCandidates = topMatches,
+                        agentReason = agentAnswer,
+                        locationWeatherSummary = contextSummary
+                    )
+                )
 
 
             } catch (e: Exception) {
                 Log.e("ChatViewModel", "Failed to pick best favorite place", e)
-                _errorMessage.value = "Failed to compare MBTI and favorite embeddings: ${e.localizedMessage}"
-                _bestFavoriteMatch.value = null
-                _topFavoriteMatches.value = emptyList()
-                withContext(Dispatchers.Main) {
-                    onResult?.invoke(emptyList())
-                }
             }
         }
     }
@@ -1029,7 +1030,7 @@ class ChatViewModel @Inject constructor(
         expectedSize: Int
     ): FloatArray? {
         val current = place.embedding
-        if (current.isNotEmpty() && current.size == expectedSize) {
+        if (current!!.isNotEmpty() && current.size == expectedSize) {
             return current
         }
 
