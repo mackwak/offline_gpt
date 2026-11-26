@@ -44,6 +44,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
+import kotlin.collections.firstOrNull
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
@@ -788,55 +789,33 @@ class ChatViewModel @Inject constructor(
 
                 val preferenceEmbedding = blendEmbeddings(moodEmbedding, mbtiEmbedding)
 
-                val candidates = mutableListOf<PlaceItem>()
+                val candidates = mutableListOf<FavoritePlaceMatch>()
                 for (place in places) {
                     val embedding = place.embedding ?: continue
                     val score = cosineSimilaritySafe(preferenceEmbedding, embedding) ?: continue
-                    candidates.add(place.copy(score = score))
+                    val fav = FavoritePlaceEntity(
+                        placeId = place.id,
+                        name = place.name,
+                        category = place.category,
+                        address = place.address,
+                        rating = place.rating,
+                        latitude = place.latitude,
+                        longitude = place.longitude
+                    )
+                    val mm = FavoritePlaceMatch(place = fav, mbtiType = mbti, similarity = score)
+                    candidates.add(mm)
                 }
-
+/*
                 withContext(Dispatchers.Main) {
                     onResult?.invoke(candidates)
                 }
-
-                /*
-                              val safeTopK = topK.coerceAtLeast(1)
-                              val topMatches = candidates
-                                  .sortedByDescending { cosineSimilaritySafe(preferenceEmbedding, it.embedding!!) ?: Double.NEGATIVE_INFINITY }
-                                  .take(safeTopK)
-
-
-                                              // get the latest diary from room
-                                              val latestDiary = diaryDao.getLatestDiary()
+*/
+                val contextSummary = getLocationWeatherSummary()
+                val decisionPrompt = buildFavoriteDecisionPrompt(mbti, contextSummary, candidates)
+                val agentAnswer = getCurrentResponse(decisionPrompt)
+                val selected = parseSelectedCandidate(agentAnswer, candidates) ?: candidates.firstOrNull()
 
 
-
-
-                                              val preferenceEmbedding = blendEmbeddings(moodEmbedding, mbtiEmbedding)
-
-                                              val candidates = mutableListOf<PlaceItem>()
-                                              for (place in places) {
-
-                                                  val score = cosineSimilaritySafe(preferenceEmbedding, place.embedding!!) ?: continue
-                                                  candidates.add(place)
-                                              }
-
-                                              val safeTopK = topK.coerceAtLeast(1)
-                                              val topMatches = candidates
-                                                  .sortedByDescending { cosineSimilaritySafe(preferenceEmbedding, it.embedding!!) ?: Double.NEGATIVE_INFINITY }
-                                                  .take(safeTopK)
-
-                                              _topFavoriteMatches.value = topMatches
-                                              _bestFavoriteMatch.value = topMatches.firstOrNull()
-
-
-
-
-                                              withContext(Dispatchers.Main) {
-                                                  onResult?.invoke(topMatches)
-                                              }
-
-                               */
             } catch (e: Exception) {
                 Log.e("ChatViewModel", "Failed to pick best favorite place", e)
                 _errorMessage.value = "Failed to compare MBTI and favorite embeddings: ${e.localizedMessage}"

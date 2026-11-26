@@ -86,7 +86,7 @@ fun AgentPlacesScreen(
             val lastHistory = mbtiViewModel.history.value.lastOrNull()
             if (lastHistory != null) {
 
-                chatViewModel.pickBestFavoritePlaceByMood(lastHistory.mbtiType, selectedMood!!, state.places, topK = 3) { candidates ->
+                chatViewModel.pickBestFavoritePlaceByMood(lastHistory.mbtiType, selectedMood!!, state.places, topK = 3) { selected ->
 
 
                   /*

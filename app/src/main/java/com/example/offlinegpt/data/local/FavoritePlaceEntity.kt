@@ -16,7 +16,7 @@ data class FavoritePlaceEntity(
     val websiteUri: String? = null,
     val editorialSummary: String? = null,
     val generativeSummary: String? = null,
-    val embedding: FloatArray,
+    val embedding: FloatArray? = null,
     val addedAt: Long = System.currentTimeMillis()
 ) {
     override fun equals(other: Any?): Boolean {
