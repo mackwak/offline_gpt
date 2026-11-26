@@ -14,7 +14,7 @@ import androidx.room.TypeConverters
         FavoritePlaceEntity::class,
         DiaryEntry::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

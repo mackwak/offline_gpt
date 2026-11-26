@@ -5,6 +5,25 @@
 -dontwarn org.tensorflow.lite.InterpreterFactoryApi
 -dontwarn org.tensorflow.lite.annotations.UsedByReflection
 
+# Keep Protobuf Lite generated message fields and classes accessed reflectively
+-keep class com.google.protobuf.** { *; }
+-keepclassmembers class com.google.protobuf.** { *; }
+
+-keep class * extends com.google.protobuf.GeneratedMessageLite { *; }
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
+    <fields>;
+}
+
+# Keep MediaPipe classes and fields from obfuscation or removal
+-keep class com.google.mediapipe.** { *; }
+-keepclassmembers class com.google.mediapipe.** { *; }
+-dontwarn com.google.mediapipe.**
+
+# Keep TensorFlow Lite classes
+-keep class org.tensorflow.lite.** { *; }
+-keepclassmembers class org.tensorflow.lite.** { *; }
+-dontwarn org.tensorflow.lite.**
+
 # Keep LiteRT-LM classes and methods from being obfuscated or removed
 -keep class com.google.ai.edge.litertlm.** { *; }
 -keepclassmembers class com.google.ai.edge.litertlm.** {

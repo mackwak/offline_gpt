@@ -777,6 +777,16 @@ class ChatViewModel @Inject constructor(
                     _errorMessage.value = "Embedding model not found. Please download the embedding model first."
                     _bestFavoriteMatch.value = null
                     _topFavoriteMatches.value = emptyList()
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(
+                            FavoritePlaceDecision(
+                                selected = null,
+                                topCandidates = emptyList(),
+                                agentReason = "Embedding model not found.",
+                                locationWeatherSummary = "Unavailable"
+                            )
+                        )
+                    }
                     return@launch
                 }
 
@@ -813,18 +823,35 @@ class ChatViewModel @Inject constructor(
                 val agentAnswer = getCurrentResponse(decisionPrompt)
                 val selected = parseSelectedCandidate(agentAnswer, topMatches) ?: topMatches.firstOrNull()
 
-                onResult?.invoke(
-                    FavoritePlaceDecision(
-                        selected = selected,
-                        topCandidates = topMatches,
-                        agentReason = agentAnswer,
-                        locationWeatherSummary = contextSummary
-                    )
-                )
+                _topFavoriteMatches.value = topMatches
+                _bestFavoriteMatch.value = selected
 
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(
+                        FavoritePlaceDecision(
+                            selected = selected,
+                            topCandidates = topMatches,
+                            agentReason = agentAnswer,
+                            locationWeatherSummary = contextSummary
+                        )
+                    )
+                }
 
             } catch (e: Exception) {
                 Log.e("ChatViewModel", "Failed to pick best favorite place", e)
+                _errorMessage.value = "Failed to pick best favorite place: ${e.localizedMessage}"
+                _bestFavoriteMatch.value = null
+                _topFavoriteMatches.value = emptyList()
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(
+                        FavoritePlaceDecision(
+                            selected = null,
+                            topCandidates = emptyList(),
+                            agentReason = "Failed to pick favorite place: ${e.localizedMessage}",
+                            locationWeatherSummary = "Unavailable"
+                        )
+                    )
+                }
             }
         }
     }
@@ -1030,7 +1057,7 @@ class ChatViewModel @Inject constructor(
         expectedSize: Int
     ): FloatArray? {
         val current = place.embedding
-        if (current!!.isNotEmpty() && current.size == expectedSize) {
+        if (current != null && current.isNotEmpty() && current.size == expectedSize) {
             return current
         }
 

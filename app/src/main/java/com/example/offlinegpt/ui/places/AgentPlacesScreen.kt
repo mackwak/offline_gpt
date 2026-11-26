@@ -49,8 +49,6 @@ import com.example.offlinegpt.ui.mbti.MbtiViewModel
 fun AgentPlacesScreen(
     onBack: () -> Unit,
     selectedMood: String? = null,
-    isFavorite: Boolean = false,
-    highlightedPlaceId: String? = null,
     agentReason: String? = null,
     viewModel: NearbyPlacesViewModel = hiltViewModel(),
     chatViewModel: ChatViewModel = hiltViewModel(),
@@ -64,6 +62,10 @@ fun AgentPlacesScreen(
     val currentLon by viewModel.currentLon.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
 
+   val highlightedPlaceId = remember {
+       mutableStateOf<String?>(null)
+   }
+
     var viewMode by remember { mutableStateOf(PlacesViewMode.LIST) }
     var selectedPlace by remember { mutableStateOf<PlaceItem?>(null) }
     var showReasonDialog by remember(agentReason) { mutableStateOf(!agentReason.isNullOrBlank()) }
@@ -76,7 +78,7 @@ fun AgentPlacesScreen(
     }
     val highlightedPlace = (uiState as? PlacesUiState.Success)
         ?.places
-        ?.firstOrNull { !highlightedPlaceId.isNullOrBlank() && it.id == highlightedPlaceId }
+        ?.firstOrNull { highlightedPlaceId.value != null && it.id == highlightedPlaceId.value }
 
     LaunchedEffect(uiState, highlightedPlaceId) {
         val state = uiState
@@ -114,7 +116,7 @@ fun AgentPlacesScreen(
 
             }
 
-            val index = state.places.indexOfFirst { it.id == highlightedPlaceId }
+            val index = state.places.indexOfFirst { it.id == highlightedPlaceId.value }
 
             if (index >= 0) {
                 listState.animateScrollToItem(index)
@@ -465,7 +467,7 @@ fun AgentPlacesScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(state.places, key = { it.id }) { place ->
-                                    val isHighlighted = highlightedPlaceId != null && place.id == highlightedPlaceId
+                                    val isHighlighted = highlightedPlaceId.value != null && place.id == highlightedPlaceId.value
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
                                         colors = CardDefaults.cardColors(
