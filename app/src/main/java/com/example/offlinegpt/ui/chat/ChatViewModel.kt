@@ -782,34 +782,61 @@ class ChatViewModel @Inject constructor(
                     return@launch
                 }
 
-                // get the latest diary from room
-                val latestDiary = diaryDao.getLatestDiary()
-
                 val moodEmbedding = embeddingEngine.embed("feels $mood")
                 val mbtiDescription = MbtiDescriptions.getDescription(mbti)
                 val mbtiEmbedding = embeddingEngine.embed("MBTI $mbti profile: $mbtiDescription")
-
-
 
                 val preferenceEmbedding = blendEmbeddings(moodEmbedding, mbtiEmbedding)
 
                 val candidates = mutableListOf<PlaceItem>()
                 for (place in places) {
-
-                    val score = cosineSimilaritySafe(preferenceEmbedding, place.embedding!!) ?: continue
-                    candidates.add(place)
+                    val embedding = place.embedding ?: continue
+                    val score = cosineSimilaritySafe(preferenceEmbedding, embedding) ?: continue
+                    candidates.add(place.copy(score = score))
                 }
 
-                val safeTopK = topK.coerceAtLeast(1)
-                val topMatches = candidates
-                    .sortedByDescending { it.similarity }
-                    .take(safeTopK)
-
-                _topFavoriteMatches.value = topMatches
-                _bestFavoriteMatch.value = topMatches.firstOrNull()
                 withContext(Dispatchers.Main) {
-                    onResult?.invoke(topMatches)
+                    onResult?.invoke(candidates)
                 }
+
+                /*
+                              val safeTopK = topK.coerceAtLeast(1)
+                              val topMatches = candidates
+                                  .sortedByDescending { cosineSimilaritySafe(preferenceEmbedding, it.embedding!!) ?: Double.NEGATIVE_INFINITY }
+                                  .take(safeTopK)
+
+
+                                              // get the latest diary from room
+                                              val latestDiary = diaryDao.getLatestDiary()
+
+
+
+
+                                              val preferenceEmbedding = blendEmbeddings(moodEmbedding, mbtiEmbedding)
+
+                                              val candidates = mutableListOf<PlaceItem>()
+                                              for (place in places) {
+
+                                                  val score = cosineSimilaritySafe(preferenceEmbedding, place.embedding!!) ?: continue
+                                                  candidates.add(place)
+                                              }
+
+                                              val safeTopK = topK.coerceAtLeast(1)
+                                              val topMatches = candidates
+                                                  .sortedByDescending { cosineSimilaritySafe(preferenceEmbedding, it.embedding!!) ?: Double.NEGATIVE_INFINITY }
+                                                  .take(safeTopK)
+
+                                              _topFavoriteMatches.value = topMatches
+                                              _bestFavoriteMatch.value = topMatches.firstOrNull()
+
+
+
+
+                                              withContext(Dispatchers.Main) {
+                                                  onResult?.invoke(topMatches)
+                                              }
+
+                               */
             } catch (e: Exception) {
                 Log.e("ChatViewModel", "Failed to pick best favorite place", e)
                 _errorMessage.value = "Failed to compare MBTI and favorite embeddings: ${e.localizedMessage}"

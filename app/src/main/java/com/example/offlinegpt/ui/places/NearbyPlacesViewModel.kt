@@ -46,7 +46,8 @@ data class PlaceItem(
     val editorialSummary: String? = null,
     val generativeSummary: String? = null,
     val isFavorite: Boolean = false,
-    val embedding: FloatArray? = null
+    val embedding: FloatArray? = null,
+    val score: Float? = null
 )
 
 sealed class PlacesUiState {
