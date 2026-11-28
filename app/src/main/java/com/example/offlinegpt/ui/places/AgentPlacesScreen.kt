@@ -517,19 +517,6 @@ fun AgentPlacesScreen(
                                                         style = MaterialTheme.typography.titleMedium,
                                                         fontWeight = FontWeight.Bold
                                                     )
-                                                    if (isAgentPick) {
-                                                        Surface(
-                                                            color = Color(0xFF8E24AA),
-                                                            shape = MaterialTheme.shapes.extraSmall
-                                                        ) {
-                                                            Text(
-                                                                text = "🤖 AI Pick",
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                color = Color.White,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                    }
                                                 }
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 Text(
