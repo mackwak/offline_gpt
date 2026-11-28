@@ -49,7 +49,6 @@ import com.example.offlinegpt.ui.mbti.MbtiViewModel
 fun AgentPlacesScreen(
     onBack: () -> Unit,
     selectedMood: String? = null,
-    agentReason: String? = null,
     viewModel: NearbyPlacesViewModel = hiltViewModel(),
     chatViewModel: ChatViewModel = hiltViewModel(),
     mbtiViewModel: MbtiViewModel = hiltViewModel()
@@ -68,7 +67,11 @@ fun AgentPlacesScreen(
 
     var viewMode by remember { mutableStateOf(PlacesViewMode.LIST) }
     var selectedPlace by remember { mutableStateOf<PlaceItem?>(null) }
-    var showReasonDialog by remember(agentReason) { mutableStateOf(!agentReason.isNullOrBlank()) }
+    var agentReason by remember {
+        mutableStateOf<String?>(null)
+    }
+    var showReasonDialog by remember {
+        mutableStateOf(!agentReason.isNullOrBlank()) }
     val listState = rememberLazyListState()
     val decodedAgentReason = remember(agentReason) {
         agentReason
@@ -80,15 +83,15 @@ fun AgentPlacesScreen(
         ?.places
         ?.firstOrNull { highlightedPlaceId.value != null && it.id == highlightedPlaceId.value }
 
-    LaunchedEffect(uiState, highlightedPlaceId) {
+    LaunchedEffect(uiState, selectedMood) {
         val state = uiState
 
-        if (state is PlacesUiState.Success) {
+        if (state is PlacesUiState.Success && !selectedMood.isNullOrBlank()) {
 
             val lastHistory = mbtiViewModel.history.value.lastOrNull()
             if (lastHistory != null) {
 
-                chatViewModel.pickBestFavoritePlaceByMood(lastHistory.mbtiType, selectedMood!!, state.places, topK = 3) { decision ->
+                chatViewModel.pickBestFavoritePlaceByMood(lastHistory.mbtiType, selectedMood, state.places, topK = 3) { decision ->
 
                     if (decision.topCandidates.isNotEmpty()) {
                         decision.topCandidates.forEachIndexed { index, match ->
@@ -100,29 +103,27 @@ fun AgentPlacesScreen(
                         Log.d("MBDI", "Context: ${decision.locationWeatherSummary}")
                         Log.d("MBDI", "Agent reason: ${decision.agentReason}")
                         decision.selected?.let { selected ->
+
                             Log.d("MBDI", "Selected: ${selected.place.name}")
-                         //   onNavigateToFavorites(selected.place.placeId, decision.agentReason)
-                        } ?: run {
-                         //   onNavigateToFavorites(null, decision.agentReason)
+                            agentReason = decision.agentReason
+                            highlightedPlaceId.value = selected.place.placeId
+                            selectedPlace = state.places.firstOrNull { it.id == selected.place.placeId }
                         }
                     } else {
                         Log.w("MBDI", "No favorite place match available.")
-                     //   onNavigateToFavorites(null, null)
                     }
-
-
-
                 }
-
-            }
-
-            val index = state.places.indexOfFirst { it.id == highlightedPlaceId.value }
-
-            if (index >= 0) {
-                listState.animateScrollToItem(index)
             }
         }
+    }
 
+    LaunchedEffect(highlightedPlaceId.value) {
+        val state = uiState as? PlacesUiState.Success ?: return@LaunchedEffect
+        val targetId = highlightedPlaceId.value ?: return@LaunchedEffect
+        val index = state.places.indexOfFirst { it.id == targetId }
+        if (index >= 0) {
+            listState.animateScrollToItem(index)
+        }
     }
 
     val categories = listOf("All", "Cafe", "Restaurant", "Bakery", "Park")
