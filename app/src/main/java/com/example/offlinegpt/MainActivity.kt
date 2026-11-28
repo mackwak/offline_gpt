@@ -2,6 +2,7 @@ package com.example.offlinegpt
 
 import android.Manifest
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -13,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -21,18 +23,24 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import java.net.URLEncoder
+import com.example.offlinegpt.data.engine.TavilyViewModel
+import com.example.offlinegpt.data.mbti.MbtiDescriptions
 import com.example.offlinegpt.ui.auth.AuthViewModel
 import com.example.offlinegpt.ui.auth.LoginScreen
 import com.example.offlinegpt.ui.auth.SignupScreen
+import com.example.offlinegpt.ui.chat.AIWorkFlowScreen
 import com.example.offlinegpt.ui.chat.ChatDetailScreen
 import com.example.offlinegpt.ui.chat.ChatListScreen
 import com.example.offlinegpt.ui.chat.ChatViewModel
+import com.example.offlinegpt.ui.chat.GaiaBenchmarkViewModel
 import com.example.offlinegpt.ui.mbti.MbtiScreen
 import com.example.offlinegpt.ui.mbti.MbtiHistoryScreen
 import com.example.offlinegpt.ui.mbti.MbtiViewModel
 import com.example.offlinegpt.ui.calculator.CalculatorScreen
 import com.example.offlinegpt.ui.compass.CompassScreen
 import com.example.offlinegpt.ui.diary.DiaryScreen
+import com.example.offlinegpt.ui.places.AgentPlacesScreen
 import com.example.offlinegpt.ui.weather.WeatherScreen
 import com.example.offlinegpt.ui.places.NearbyPlacesScreen
 import com.example.offlinegpt.ui.theme.OfflineGPTTheme
@@ -94,6 +102,7 @@ class MainActivity : ComponentActivity() {
                         HomeScreen(
                             onLogout = { authViewModel.onLogoutClick() },
                             onNavigateToChats = { navController.navigate("chat_list") },
+                            onNavigateToAIWorkflow = { navController.navigate("ai_workflow") },
                             onNavigateToRag = { navController.navigate("chat_rag") },
                             onNavigateToMbti = { navController.navigate("mbti") },
                             onNavigateToMbtiHistory = { navController.navigate("mbti_history") },
@@ -101,7 +110,24 @@ class MainActivity : ComponentActivity() {
                             onNavigateToCompass = { navController.navigate("compass") },
                             onNavigateToDiary = { navController.navigate("diary") },
                             onNavigateToWeather = { navController.navigate("weather") },
-                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") }
+                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") },
+                            onNavigateToFavorites = { selectedPlaceId, agentReason ->
+                                val route = buildString {
+                                    append("favorites")
+                                    val params = mutableListOf<String>()
+                                    if (!selectedPlaceId.isNullOrBlank()) {
+                                        params.add("selectedPlaceId=${URLEncoder.encode(selectedPlaceId, "UTF-8")}")
+                                    }
+                                    if (!agentReason.isNullOrBlank()) {
+                                        params.add("agentReason=${URLEncoder.encode(agentReason, "UTF-8")}")
+                                    }
+                                    if (params.isNotEmpty()) {
+                                        append("?")
+                                        append(params.joinToString("&"))
+                                    }
+                                }
+                                navController.navigate(route)
+                            }
                         )
                     }
                     composable("chat_list") {
@@ -120,6 +146,11 @@ class MainActivity : ComponentActivity() {
                         ChatDetailScreen(
                             viewModel = chatViewModel,
                             sessionId = sessionId,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("ai_workflow") {
+                        AIWorkFlowScreen(
                             onBack = { navController.popBackStack() }
                         )
                     }
@@ -159,9 +190,27 @@ class MainActivity : ComponentActivity() {
                             onNavigateToMbti = { navController.navigate("mbti") },
                             onNavigateToDiary = { navController.navigate("diary") },
                             onNavigateToFavorites = { navController.navigate("favorites") },
-                            onNavigateToNearbyPlaces = { navController.navigate("nearby_places") }
+                            onNavigateToNearbyPlaces = { selectedMood ->
+                                val route = if (selectedMood.isNullOrBlank()) {
+                                    "nearby_places"
+                                } else {
+                                    "nearby_places?selectedMood=${URLEncoder.encode(selectedMood, "UTF-8")}"
+                                }
+                                navController.navigate(route)
+                            }
                         )
                     }
+
+                    composable(
+                        route = "nearby_places?selectedMood={selectedMood}"
+                    ) { backStackEntry ->
+                        val selectedMood = backStackEntry.arguments?.getString("selectedMood")
+                        AgentPlacesScreen(
+                            onBack = { navController.popBackStack() },
+                            selectedMood = selectedMood // NearbyPlacesScreen 파라미터가 있어야 함
+                        )
+                    }
+
                     composable("diary") {
                         DiaryScreen(
                             onBack = { navController.popBackStack() }
@@ -179,12 +228,16 @@ class MainActivity : ComponentActivity() {
                     }
 
                     composable(
-                        route = "favorites",
-                    ) {
+                        route = "favorites?selectedPlaceId={selectedPlaceId}&agentReason={agentReason}",
+                    ) { backStackEntry ->
+                        val selectedPlaceId = backStackEntry.arguments?.getString("selectedPlaceId")
+                        val agentReason = backStackEntry.arguments?.getString("agentReason")
                         NearbyPlacesScreen(
-                        onBack = { navController.popBackStack() }, isFavorite = true
-                    )
-
+                            onBack = { navController.popBackStack() },
+                            isFavorite = true,
+                            highlightedPlaceId = selectedPlaceId,
+                            agentReason = agentReason
+                        )
                     }
                 }
             }
@@ -196,6 +249,7 @@ class MainActivity : ComponentActivity() {
 fun HomeScreen(
     onLogout: () -> Unit,
     onNavigateToChats: () -> Unit,
+    onNavigateToAIWorkflow: () -> Unit,
     onNavigateToRag: () -> Unit,
     onNavigateToMbti: () -> Unit,
     onNavigateToMbtiHistory: () -> Unit,
@@ -204,10 +258,21 @@ fun HomeScreen(
     onNavigateToDiary: () -> Unit = {},
     onNavigateToWeather: () -> Unit = {},
     onNavigateToNearbyPlaces: () -> Unit = {},
+    onNavigateToFavorites: (String?, String?) -> Unit = { _, _ -> },
     authViewModel: AuthViewModel = hiltViewModel()
 ) {
+    val searchViewModel: TavilyViewModel = hiltViewModel()
     val chatViewModel: ChatViewModel = hiltViewModel()
+    val gaiaViewModel: GaiaBenchmarkViewModel = hiltViewModel()
     val userEmail = authViewModel.userEmail
+    val isGaiaDownloaded by gaiaViewModel.isGaiaDownloaded.collectAsState()
+    val isGaiaDownloading by gaiaViewModel.isGaiaDownloading.collectAsState()
+    val gaiaDownloadStatus by gaiaViewModel.downloadStatus.collectAsState()
+    val mbtiViewModel: MbtiViewModel = hiltViewModel()
+
+    LaunchedEffect(Unit) {
+        searchViewModel.search("Where is best place to go in Seoul?")
+    }
 
     Column(
         modifier = Modifier
@@ -230,6 +295,9 @@ fun HomeScreen(
             Button(onClick = onNavigateToChats, modifier = Modifier.fillMaxWidth()) {
                 Text("GPT Chats")
             }
+            Button(onClick = onNavigateToAIWorkflow, modifier = Modifier.fillMaxWidth()) {
+                Text("AI Agent")
+            }
         } else {
             Button(onClick = { chatViewModel.downloadGemma4Model() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Download Gemma 4 Model")
@@ -244,6 +312,28 @@ fun HomeScreen(
             Button(onClick = { chatViewModel.downloadModelFile() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Download Embedding Model")
             }
+        }
+
+        Button(
+            onClick = { gaiaViewModel.downloadGaiaDataset() },
+            enabled = !isGaiaDownloaded && !isGaiaDownloading,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                when {
+                    isGaiaDownloaded -> "GAIA Problems Downloaded"
+                    isGaiaDownloading -> "Downloading GAIA Problems..."
+                    else -> "Download GAIA Problems"
+                }
+            )
+        }
+
+        gaiaDownloadStatus?.let { status ->
+            Text(
+                text = status,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
         Button(onClick = onNavigateToCalculator, modifier = Modifier.fillMaxWidth()) {
@@ -276,6 +366,47 @@ fun HomeScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+
+
+        Button(
+            onClick = {
+                val lastHistory = mbtiViewModel.history.value.lastOrNull()
+                if (lastHistory != null) {
+                    Log.d("MBDI", "mbtiType: ${lastHistory.mbtiType}")
+                    Log.d("MBDI", "mbtiType: ${MbtiDescriptions.getDescription(lastHistory.mbtiType)}")
+                    chatViewModel.pickBestFavoritePlaceByLocationAndWeather(lastHistory.mbtiType, topK = 3) { decision ->
+                        if (decision.topCandidates.isNotEmpty()) {
+                            decision.topCandidates.forEachIndexed { index, match ->
+                                Log.d(
+                                    "MBDI",
+                                    "Top ${index + 1} for ${match.mbtiType}: ${match.place.name} (similarity=${match.similarity})"
+                                )
+                            }
+                            Log.d("MBDI", "Context: ${decision.locationWeatherSummary}")
+                            Log.d("MBDI", "Agent reason: ${decision.agentReason}")
+                            decision.selected?.let { selected ->
+                                Log.d("MBDI", "Selected: ${selected.place.name}")
+                                onNavigateToFavorites(selected.place.placeId, decision.agentReason)
+                            } ?: run {
+                                onNavigateToFavorites(null, decision.agentReason)
+                            }
+                        } else {
+                            Log.w("MBDI", "No favorite place match available.")
+                            onNavigateToFavorites(null, null)
+                        }
+                    }
+
+                    // MbtiDescriptions.getDescription(lastHistory.mbtiType)
+                } else {
+                    Log.w("MBDI", "No MBTI history found yet.")
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+        ) {
+            Text("Pick the best favorite place")
+        }
+
 
         Button(
             onClick = onLogout,

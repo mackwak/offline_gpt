@@ -18,15 +18,23 @@ class EmbeddingEngine @Inject constructor(
     private var textEmbedder: TextEmbedder? = null
 
     suspend fun initialize(modelPath: String) = withContext(Dispatchers.IO) {
-        val baseOptions = BaseOptions.builder()
-            .setModelAssetPath(modelPath)
-            .build()
-        
-        val options = TextEmbedderOptions.builder()
-            .setBaseOptions(baseOptions)
-            .build()
+        val file = File(modelPath)
+        if (!file.exists()) {
+            return@withContext
+        }
+        try {
+            val baseOptions = BaseOptions.builder()
+                .setModelAssetPath(modelPath)
+                .build()
             
-        textEmbedder = TextEmbedder.createFromOptions(context, options)
+            val options = TextEmbedderOptions.builder()
+                .setBaseOptions(baseOptions)
+                .build()
+                
+            textEmbedder = TextEmbedder.createFromOptions(context, options)
+        } catch (_: Exception) {
+            textEmbedder = null
+        }
     }
 
     fun isInitialized(): Boolean = textEmbedder != null

@@ -14,6 +14,9 @@ interface DiaryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEntry(entry: DiaryEntry): Long
 
+    @Query("SELECT * FROM diary_entries ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLatestDiary(): DiaryEntry?
+
     @Query("DELETE FROM diary_entries WHERE id = :entryId")
     suspend fun deleteEntry(entryId: Long)
 }

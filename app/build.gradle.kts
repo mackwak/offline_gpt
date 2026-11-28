@@ -18,6 +18,12 @@ android {
         versionCode = 20
         versionName = "1.0"
 
+        val hfToken = (project.findProperty("HF_TOKEN") as String?) ?: ""
+        buildConfigField("String", "HF_TOKEN", "\"$hfToken\"")
+
+        val tavilyApiKey = (project.findProperty("TAVILY_API_KEY") as String?) ?: ""
+        buildConfigField("String", "TAVILY_API_KEY", "\"$tavilyApiKey\"")
+
         testInstrumentationRunner = "com.example.offlinegpt.HiltTestRunner"
     }
 
@@ -66,6 +72,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     configurations.all {
@@ -97,6 +104,11 @@ dependencies {
     // Maps & Maps Compose
     implementation(libs.play.services.maps)
     implementation(libs.maps.compose)
+
+    // Retrofit & Gson
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.gson)
 
     // LiteRT & TensorFlow Lite
     implementation(libs.litertlm.android)

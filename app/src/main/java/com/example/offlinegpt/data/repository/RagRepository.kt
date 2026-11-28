@@ -21,13 +21,12 @@ class RagRepository @Inject constructor(
 ) {
 
     suspend fun ingestPdf(uri: Uri, embedder: (String) -> FloatArray) = withContext(Dispatchers.IO) {
-
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
             inputStream?.use { stream ->
                 val document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(stream)
                 val totalPages = document.numberOfPages
-                Log.d("ChatViewModel", "PDF loaded. Total pages: $totalPages")
+                Log.d("RagRepository", "PDF loaded. Total pages: $totalPages")
 
                 val fileName = getFileName(uri)
                 val file = copyUriToFile(uri, fileName)
@@ -42,7 +41,6 @@ class RagRepository @Inject constructor(
                     val pageText = stripper.getText(document).trim()
 
                     if (pageText.isNotEmpty()) {
-                        // Further split page text by paragraphs if it's very long
                         val paragraphs = pageText.split(Regex("\\n\\s*\\n"))
                             .map { it.trim() }
                             .filter { it.length > 20 }
@@ -56,15 +54,91 @@ class RagRepository @Inject constructor(
                                 embedding = embedder(page)
                             )
                             ragDao.insertPage(documentPage)
-                            Log.d("ChatViewModel", "Page $pageIndex ingested with ${paragraphs.size} chunks")
+                            Log.d("RagRepository", "Page $pageIndex ingested with ${paragraphs.size} chunks")
                         }
                     }
                 }
                 document.close()
-                Log.d("ChatViewModel", "PDF ingestion completed for $fileName")
+                Log.d("RagRepository", "PDF ingestion completed for $fileName")
             }
         } catch (e: Exception) {
-            Log.e("ChatViewModel", "Error ingesting PDF", e)
+            Log.e("RagRepository", "Error ingesting PDF", e)
+        }
+    }
+
+    suspend fun ingestRawPdf(rawResId: Int, fileName: String, embedder: (String) -> FloatArray) = withContext(Dispatchers.IO) {
+        try {
+            val existingPages = ragDao.getAllPages()
+            if (existingPages.any { page -> page.content.isNotBlank() }) {
+                Log.d("RagRepository", "Database already contains ingested pages for $fileName")
+                return@withContext
+            }
+
+            context.resources.openRawResource(rawResId).use { stream ->
+                val document = com.tom_roush.pdfbox.pdmodel.PDDocument.load(stream)
+                val totalPages = document.numberOfPages
+                Log.d("RagRepository", "Raw PDF loaded ($fileName). Total pages: $totalPages")
+
+                val file = File(context.cacheDir, fileName)
+                context.resources.openRawResource(rawResId).use { input ->
+                    FileOutputStream(file).use { output -> input.copyTo(output) }
+                }
+
+                val documentId = ragDao.insertDocument(Document(fileName = fileName, filePath = file.absolutePath))
+                val stripper = com.tom_roush.pdfbox.text.PDFTextStripper()
+
+                for (pageIndex in 1..totalPages) {
+                    stripper.startPage = pageIndex
+                    stripper.endPage = pageIndex
+                    val pageText = stripper.getText(document).trim()
+
+                    if (pageText.isNotEmpty()) {
+                        val paragraphs = pageText.split(Regex("\\n\\s*\\n"))
+                            .map { it.trim() }
+                            .filter { it.length > 20 }
+
+                        if (paragraphs.isNotEmpty()) {
+                            val pageContent = paragraphs.joinToString(separator = "\n\n")
+                            val documentPage = DocumentPage(
+                                documentId = documentId,
+                                pageNumber = pageIndex,
+                                content = pageContent,
+                                embedding = embedder(pageContent)
+                            )
+                            ragDao.insertPage(documentPage)
+                            Log.d("RagRepository", "Ingested Raw PDF Page $pageIndex for $fileName")
+                        }
+                    }
+                }
+                document.close()
+            }
+        } catch (e: Exception) {
+            Log.e("RagRepository", "Error ingesting raw PDF: $fileName", e)
+        }
+    }
+
+    suspend fun ingestWebSearchText(query: String, contentText: String, embedder: (String) -> FloatArray) = withContext(Dispatchers.IO) {
+        try {
+            if (contentText.isBlank()) return@withContext
+            val fileName = "WebSearch: $query"
+            val file = File(context.cacheDir, "websearch_${System.currentTimeMillis()}.txt")
+            file.writeText(contentText)
+
+            val documentId = ragDao.insertDocument(Document(fileName = fileName, filePath = file.absolutePath))
+            val chunks = contentText.chunked(400).filter { it.isNotBlank() }
+
+            chunks.forEachIndexed { index, chunk ->
+                val documentPage = DocumentPage(
+                    documentId = documentId,
+                    pageNumber = index + 1,
+                    content = chunk,
+                    embedding = embedder(chunk)
+                )
+                ragDao.insertPage(documentPage)
+            }
+            Log.d("RagRepository", "Ingested web search content to vector DB for query: $query (${chunks.size} chunks)")
+        } catch (e: Exception) {
+            Log.e("RagRepository", "Error ingesting web search text into vector DB", e)
         }
     }
 
@@ -84,14 +158,9 @@ class RagRepository @Inject constructor(
 
     suspend fun findRelevantPages(queryEmbedding: FloatArray, topK: Int = 3): List<String> {
         val allPages = ragDao.getAllPages()
-
-        Log.d("RagRepository", "All Pages: $allPages")
+        if (allPages.isEmpty()) return emptyList()
 
         return allPages.map { page ->
-
-
-            Log.d("RagRepository", "All Page: ${page.content}")
-
             val score = cosineSimilarity(queryEmbedding, page.embedding)
             page to score
         }.sortedByDescending { it.second }
@@ -117,7 +186,7 @@ class RagRepository @Inject constructor(
             Log.d("RagRepository", "Page: ${page.content}")
         }
     }
- 
+
     suspend fun removeAllPages() {
         ragDao.deleteAllDocuments()
         ragDao.removeAllPages()

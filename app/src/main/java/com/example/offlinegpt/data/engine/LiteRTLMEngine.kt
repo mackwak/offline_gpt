@@ -7,8 +7,11 @@ import com.google.ai.edge.litertlm.Message
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class LiteRTLMEngine {
+@Singleton
+class LiteRTLMEngine @Inject constructor() {
 
     private var engine: Engine? = null
     private var activeConversation: Conversation? = null

@@ -20,26 +20,26 @@ object EmbeddingModule {
     @Singleton
     fun provideTextEmbedder(
         @ApplicationContext context: Context
-    ): TextEmbedder {
-
+    ): TextEmbedder? {
         val fileName = "universal-sentence-encoder.tflite"
         val modelFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
 
-        val baseOptionsBuilder = BaseOptions.builder()
-        if (modelFile.exists()) {
-            baseOptionsBuilder.setModelAssetPath(modelFile.absolutePath)
-        } else {
-            // Fallback to a model in the assets folder if the downloaded one isn't ready.
-            // Note: MediaPipe Android requires a slash in the asset path to avoid a native crash.
-            baseOptionsBuilder.setModelAssetPath("./universal_sentence_encoder.tflite")
+        if (!modelFile.exists()) {
+            return null
         }
 
-        val baseOptions = baseOptionsBuilder.build()
+        return try {
+            val baseOptions = BaseOptions.builder()
+                .setModelAssetPath(modelFile.absolutePath)
+                .build()
 
-        val options = TextEmbedder.TextEmbedderOptions.builder()
-            .setBaseOptions(baseOptions)
-            .build()
+            val options = TextEmbedder.TextEmbedderOptions.builder()
+                .setBaseOptions(baseOptions)
+                .build()
 
-        return TextEmbedder.createFromOptions(context, options)
+            TextEmbedder.createFromOptions(context, options)
+        } catch (_: Exception) {
+            null
+        }
     }
 }

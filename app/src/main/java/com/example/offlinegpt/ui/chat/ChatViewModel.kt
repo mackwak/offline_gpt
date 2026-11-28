@@ -9,15 +9,25 @@ import android.os.Environment
 import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.unit.minus
+import androidx.compose.ui.unit.plus
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.offlinegpt.data.calculator.CalculatorService
 import com.example.offlinegpt.data.engine.EmbeddingEngine
 import com.example.offlinegpt.data.engine.LiteRTLMEngine
+import com.example.offlinegpt.data.engine.TavilyRepository
 import com.example.offlinegpt.data.location.LocationProvider
 import com.example.offlinegpt.data.local.ChatMessage
 import com.example.offlinegpt.data.local.ChatSession
+import com.example.offlinegpt.data.local.DiaryDao
+import com.example.offlinegpt.data.local.DiaryEntry
+import com.example.offlinegpt.data.local.FavoritePlaceDao
+import com.example.offlinegpt.data.local.FavoritePlaceEntity
+import com.example.offlinegpt.data.mbti.MbtiDescriptions
 import com.example.offlinegpt.data.repository.ChatRepository
 import com.example.offlinegpt.data.repository.RagRepository
+import com.example.offlinegpt.ui.places.PlaceItem
 import com.example.offlinegpt.util.tts.TextToSpeechManager
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,23 +37,46 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
+import kotlin.collections.firstOrNull
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val repository: ChatRepository,
     private val ragRepository: RagRepository,
+    private val diaryDao: DiaryDao,
+    private val favoritePlaceDao: FavoritePlaceDao,
     private val auth: FirebaseAuth,
     private val locationProvider: LocationProvider,
     private val ttsManager: TextToSpeechManager,
     private val embeddingEngine: EmbeddingEngine,
+    private val calculatorService: CalculatorService,
+    private val tavilyRepository: TavilyRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private companion object {
+        const val DEFAULT_DIARY_EMBEDDING_WEIGHT = 0.3f
+    }
+
+    data class FavoritePlaceMatch(
+        val place: FavoritePlaceEntity,
+        val similarity: Float,
+        val mbtiType: String
+    )
+
+    data class FavoritePlaceDecision(
+        val selected: FavoritePlaceMatch?,
+        val topCandidates: List<FavoritePlaceMatch>,
+        val agentReason: String,
+        val locationWeatherSummary: String
+    )
 
     private val _searchResults = MutableStateFlow<List<String>>(emptyList())
     val searchResults: StateFlow<List<String>> = _searchResults
@@ -77,10 +110,23 @@ class ChatViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private val _bestFavoriteMatch = MutableStateFlow<FavoritePlaceMatch?>(null)
+    val bestFavoriteMatch: StateFlow<FavoritePlaceMatch?> = _bestFavoriteMatch.asStateFlow()
+
+    private val _topFavoriteMatches = MutableStateFlow<List<FavoritePlaceMatch>>(emptyList())
+    val topFavoriteMatches: StateFlow<List<FavoritePlaceMatch>> = _topFavoriteMatches.asStateFlow()
+
+    private val _diaryEmbeddingWeight = MutableStateFlow(DEFAULT_DIARY_EMBEDDING_WEIGHT)
+    val diaryEmbeddingWeight: StateFlow<Float> = _diaryEmbeddingWeight.asStateFlow()
+
     private var activeDownloadId: Long? = null
 
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    fun setDiaryEmbeddingWeight(weight: Float) {
+        _diaryEmbeddingWeight.value = weight.coerceIn(0f, 1f)
     }
 
     fun downloadModelFile(): Long? {
@@ -191,6 +237,10 @@ class ChatViewModel @Inject constructor(
                 _errorMessage.value = null
             }
             return null
+        }
+
+        if (!checkIfEmbeddingFileExist())  {
+            downloadModelFile()
         }
 
         val fileName = "gemma-4-E2B-it.litertlm"
@@ -493,6 +543,63 @@ class ChatViewModel @Inject constructor(
 
     }
 
+    private suspend fun executeToolCall(toolName: String, args: String): String? {
+        return when (toolName.lowercase(Locale.getDefault())) {
+            "calculator", "calc" -> {
+                val parts = args.split(",").map { it.trim() }
+                if (parts.size >= 3) {
+                    val a = parts[0].toDoubleOrNull()
+                    val b = parts[1].toDoubleOrNull()
+                    val op = parts[2]
+                    if (a != null && b != null) {
+                        val res = when (op) {
+                            "+" -> calculatorService.plus(a, b)
+                            "-" -> calculatorService.minus(a, b)
+                            "*" -> a * b
+                            "/" -> if (b != 0.0) a / b else "Division by zero"
+                            else -> calculatorService.plus(a, b)
+                        }
+                        "$a $op $b = $res"
+                    } else null
+                } else if (parts.size == 2) {
+                    val a = parts[0].toDoubleOrNull()
+                    val b = parts[1].toDoubleOrNull()
+                    if (a != null && b != null) {
+                        "$a + $b = ${calculatorService.plus(a, b)}"
+                    } else null
+                } else null
+            }
+            "get_location", "location" -> {
+                val loc = locationProvider.getCurrentLocation()
+                if (loc != null) {
+                    val address = locationProvider.getAddressFromLocation(loc)
+                    "$address (Lat: ${loc.latitude}, Lon: ${loc.longitude})"
+                } else {
+                    "Location unavailable"
+                }
+            }
+            "get_time", "time" -> {
+                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            }
+            "web_search" -> {
+                tavilyRepository.performSearch(args).fold(
+                    onSuccess = { response ->
+                        val results = response.results.joinToString("\n") { result ->
+                            "- ${result.title}: ${result.url}"
+                        }
+                        "Search Results for '$args':\n$results"
+                    },
+                    onFailure = { error ->
+                        Log.d("promptWithTools", "Error: ${error.localizedMessage}")
+
+                        "Web search failed: ${error.localizedMessage}"
+                    }
+                )
+            }
+            else -> null
+        }
+    }
+
     fun sendMessage(content: String) {
         val sessionId = currentSessionId.value ?: return
         if (content.isBlank()) return
@@ -517,15 +624,41 @@ class ChatViewModel @Inject constructor(
                     }
                 }
 
+                // get all existing messages from repository for history context
+                val existingMessages = repository.getMessagesForSession(sessionId).first()
+                val existing = existingMessages.joinToString("\n") { message ->
+                    "${if (message.isUser) "User" else "Assistant"}: ${message.content}"
+                }
+
                 repository.sendMessage(sessionId, content, isUser = true)
 
                 val responseBuilder = StringBuilder()
                 _currentStreamingText.value = ""
 
+                val promptWithTools = """
+                You are an AI assistant with access to tools.
+                Available tools:
+                - calculator(a, b, op): Performs math calculations. Format: [TOOL: calculator(12, 5, +)] where op is +, -, *, /
+                - get_location(): Returns current location. Format: [TOOL: get_location()]
+                - get_time(): Returns current date and time. Format: [TOOL: get_time()]
+                - web_search(): Performs a web search if answer is not sure. Format: [TOOL: web_search(query)]
+
+                If you need to use a tool to answer the user's question, output [TOOL: tool_name(...)].
+                Otherwise, answer directly.
+                
+                Context: $existing
+ 
+                User Question: $content
+            """.trimIndent()
+
+
+                Log.d("promptWithTools", promptWithTools)
+
                 withContext(Dispatchers.Default) {
-                    liteRTLMEngine.sendMessageStream(content)
+                    liteRTLMEngine.sendMessageStream(promptWithTools)
                         .catch { error ->
-                            _currentStreamingText.value = "Error: Gemma model not found. Please download it first."
+                            Log.d("promptWithTools", "Error: ${error.localizedMessage}")
+                            _currentStreamingText.value = "${error.localizedMessage}"
                         }
                         .collect { chunk ->
                             val text = chunk.toString()
@@ -534,7 +667,28 @@ class ChatViewModel @Inject constructor(
                         }
                 }
 
-                val finalResponse = responseBuilder.toString()
+                var generatedText = responseBuilder.toString()
+                val toolCallRegex = Regex("""\[TOOL:\s*(\w+)\((.*?)\)\]""")
+                val toolMatches = toolCallRegex.findAll(generatedText).toList()
+
+                if (toolMatches.isNotEmpty()) {
+                    val toolResultsBuilder = StringBuilder(generatedText)
+                    for (match in toolMatches) {
+                        val toolName = match.groupValues[1]
+                        val toolArgs = match.groupValues[2]
+                        val result = executeToolCall(toolName, toolArgs)
+                        if (result != null) {
+                            toolResultsBuilder.append("\n\n🛠️ [Tool Executed: $toolName]\nResult: $result")
+                        } else {
+                            Log.d("promptWithTools", "Tool Failed")
+                        }
+                    }
+                    generatedText = toolResultsBuilder.toString()
+                    _currentStreamingText.value = generatedText
+                }
+
+                val finalResponse = generatedText
+
                 if (finalResponse.isNotEmpty()) {
                     repository.sendMessage(sessionId, finalResponse, isUser = false)
                 }
@@ -612,6 +766,361 @@ class ChatViewModel @Inject constructor(
                 _currentStreamingText.value = "Error: ${e.localizedMessage}"
             }
         }
+    }
+
+    fun pickBestFavoritePlaceByMood(
+        mbti: String,
+        mood: String, places: List<PlaceItem>,
+        topK: Int = 3,
+        onResult: ((FavoritePlaceDecision) -> Unit)? = null
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+
+                if (!ensureEmbeddingEngineReady()) {
+                    _errorMessage.value = "Embedding model not found. Please download the embedding model first."
+                    _bestFavoriteMatch.value = null
+                    _topFavoriteMatches.value = emptyList()
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(
+                            FavoritePlaceDecision(
+                                selected = null,
+                                topCandidates = emptyList(),
+                                agentReason = "Embedding model not found.",
+                                locationWeatherSummary = "Unavailable"
+                            )
+                        )
+                    }
+                    return@launch
+                }
+
+                val moodEmbedding = embeddingEngine.embed("feels $mood")
+                val mbtiDescription = MbtiDescriptions.getDescription(mbti)
+                val mbtiEmbedding = embeddingEngine.embed("MBTI $mbti profile: $mbtiDescription")
+
+                val preferenceEmbedding = blendEmbeddings(moodEmbedding, mbtiEmbedding)
+
+                val candidates = mutableListOf<FavoritePlaceMatch>()
+                for (place in places) {
+                    val embedding = place.embedding ?: continue
+                    val score = cosineSimilaritySafe(preferenceEmbedding, embedding) ?: continue
+                    val fav = FavoritePlaceEntity(
+                        placeId = place.id,
+                        name = place.name,
+                        category = place.category,
+                        address = place.address,
+                        rating = place.rating,
+                        latitude = place.latitude,
+                        longitude = place.longitude
+                    )
+                    val mm = FavoritePlaceMatch(place = fav, mbtiType = mbti, similarity = score)
+                    candidates.add(mm)
+                }
+
+                val safeTopK = topK.coerceAtLeast(1)
+                val topMatches = candidates
+                    .sortedByDescending { it.similarity }
+                    .take(safeTopK)
+
+                val contextSummary = getLocationWeatherSummary()
+                val decisionPrompt = buildFavoriteDecisionPrompt(mbti, mood,contextSummary, topMatches)
+                val agentAnswer = getCurrentResponse(decisionPrompt)
+                val selected = parseSelectedCandidate(agentAnswer, topMatches) ?: topMatches.firstOrNull()
+
+                _topFavoriteMatches.value = topMatches
+                _bestFavoriteMatch.value = selected
+
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(
+                        FavoritePlaceDecision(
+                            selected = selected,
+                            topCandidates = topMatches,
+                            agentReason = agentAnswer,
+                            locationWeatherSummary = contextSummary
+                        )
+                    )
+                }
+
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Failed to pick best favorite place", e)
+                _errorMessage.value = "Failed to pick best favorite place: ${e.localizedMessage}"
+                _bestFavoriteMatch.value = null
+                _topFavoriteMatches.value = emptyList()
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(
+                        FavoritePlaceDecision(
+                            selected = null,
+                            topCandidates = emptyList(),
+                            agentReason = "Failed to pick favorite place: ${e.localizedMessage}",
+                            locationWeatherSummary = "Unavailable"
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    fun pickBestFavoritePlace(
+        mbtiType: String,
+        topK: Int = 3,
+        onResult: ((List<FavoritePlaceMatch>) -> Unit)? = null
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val favorites = favoritePlaceDao.getAllFavoritePlaces().first()
+                if (favorites.isEmpty()) {
+                    _bestFavoriteMatch.value = null
+                    _topFavoriteMatches.value = emptyList()
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(emptyList())
+                    }
+                    return@launch
+                }
+
+                if (!ensureEmbeddingEngineReady()) {
+                    _errorMessage.value = "Embedding model not found. Please download the embedding model first."
+                    _bestFavoriteMatch.value = null
+                    _topFavoriteMatches.value = emptyList()
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(emptyList())
+                    }
+                    return@launch
+                }
+
+                // get the latest diary from room
+                val latestDiary = diaryDao.getLatestDiary()
+
+                val mbtiDescription = MbtiDescriptions.getDescription(mbtiType)
+                val mbtiEmbedding = embeddingEngine.embed("MBTI $mbtiType profile: $mbtiDescription")
+                val diaryEmbedding = latestDiary
+                    ?.let { buildDiaryEmbeddingText(it) }
+                    ?.let { embeddingEngine.embed(it) }
+                val preferenceEmbedding = blendEmbeddings(mbtiEmbedding, diaryEmbedding)
+
+                val candidates = mutableListOf<FavoritePlaceMatch>()
+                for (place in favorites) {
+                    val placeEmbedding = resolvePlaceEmbeddingForComparison(place, preferenceEmbedding.size) ?: run {
+                        Log.w("ChatViewModel", "Skip place ${place.placeId}: invalid embedding")
+                        continue
+                    }
+
+                    val score = cosineSimilaritySafe(preferenceEmbedding, placeEmbedding) ?: continue
+                    candidates.add(FavoritePlaceMatch(place = place, similarity = score, mbtiType = mbtiType))
+                }
+
+                val safeTopK = topK.coerceAtLeast(1)
+                val topMatches = candidates
+                    .sortedByDescending { it.similarity }
+                    .take(safeTopK)
+
+                _topFavoriteMatches.value = topMatches
+                _bestFavoriteMatch.value = topMatches.firstOrNull()
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(topMatches)
+                }
+            } catch (e: Exception) {
+                Log.e("ChatViewModel", "Failed to pick best favorite place", e)
+                _errorMessage.value = "Failed to compare MBTI and favorite embeddings: ${e.localizedMessage}"
+                _bestFavoriteMatch.value = null
+                _topFavoriteMatches.value = emptyList()
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(emptyList())
+                }
+            }
+        }
+    }
+
+    fun pickBestFavoritePlaceByLocationAndWeather(
+        mbtiType: String,
+        topK: Int = 3,
+        onResult: ((FavoritePlaceDecision) -> Unit)? = null
+    ) {
+        pickBestFavoritePlace(mbtiType = mbtiType, topK = topK) { topMatches ->
+            viewModelScope.launch(Dispatchers.IO) {
+                if (topMatches.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        onResult?.invoke(
+                            FavoritePlaceDecision(
+                                selected = null,
+                                topCandidates = emptyList(),
+                                agentReason = "No favorite candidates available.",
+                                locationWeatherSummary = "Location/weather unavailable"
+                            )
+                        )
+                    }
+                    return@launch
+                }
+
+                val contextSummary = getLocationWeatherSummary()
+                val decisionPrompt = buildFavoriteDecisionPrompt(mbtiType, "", contextSummary, topMatches)
+                val agentAnswer = getCurrentResponse(decisionPrompt)
+                val selected = parseSelectedCandidate(agentAnswer, topMatches) ?: topMatches.firstOrNull()
+
+                _bestFavoriteMatch.value = selected
+
+                withContext(Dispatchers.Main) {
+                    onResult?.invoke(
+                        FavoritePlaceDecision(
+                            selected = selected,
+                            topCandidates = topMatches,
+                            agentReason = agentAnswer,
+                            locationWeatherSummary = contextSummary
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun buildFavoriteDecisionPrompt(
+        mbtiType: String,
+        mood: String,
+        locationWeatherSummary: String,
+        candidates: List<FavoritePlaceMatch>
+    ): String {
+        val candidateText = candidates.mapIndexed { index, match ->
+            "${index + 1}. ${match.place.name} (${match.place.category}) | rating=${match.place.rating}, address=${match.place.address}, embeddingSimilarity=${"%.4f".format(match.similarity)}"
+        }.joinToString("\n")
+
+        return """
+            You are a local trip planning agent.
+            Select exactly ONE best place among 3 candidates.
+
+            Now I feel $mood
+            User MBTI: $mbtiType
+            Current location/weather: $locationWeatherSummary
+
+            Candidates:
+            $candidateText
+
+            Output format:
+            CHOICE: <1|2|3>
+            REASON: <short reason considering weather + location + MBTI + mood>
+        """.trimIndent()
+    }
+
+    private fun parseSelectedCandidate(
+        agentAnswer: String,
+        candidates: List<FavoritePlaceMatch>
+    ): FavoritePlaceMatch? {
+        val match = Regex("""CHOICE\s*:\s*([1-9])""", RegexOption.IGNORE_CASE).find(agentAnswer)
+        val parsedIndex = match?.groupValues?.getOrNull(1)?.toIntOrNull()
+        if (parsedIndex != null && parsedIndex in 1..candidates.size) {
+            return candidates[parsedIndex - 1]
+        }
+
+        // Fallback: try to find first plain number in answer.
+        val fallback = Regex("""\b([1-9])\b""").find(agentAnswer)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        if (fallback != null && fallback in 1..candidates.size) {
+            return candidates[fallback - 1]
+        }
+
+        return null
+    }
+
+    private suspend fun getLocationWeatherSummary(): String = withContext(Dispatchers.IO) {
+        val location = locationProvider.getCurrentLocation()
+        val lat = location?.latitude ?: 37.7749
+        val lon = location?.longitude ?: -122.4194
+        val address = if (location != null) {
+            locationProvider.getAddressFromLocation(location)
+        } else {
+            "Unknown current address"
+        }
+
+        return@withContext try {
+            val urlString = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current_weather=true&timezone=auto"
+            val responseText = URL(urlString).readText()
+            val json = JSONObject(responseText)
+            val currentWeather = json.getJSONObject("current_weather")
+            val temp = currentWeather.optDouble("temperature", Double.NaN)
+            val wind = currentWeather.optDouble("windspeed", Double.NaN)
+            val code = currentWeather.optInt("weathercode", -1)
+            val weatherLabel = weatherCodeToText(code)
+
+            "address=$address, lat=$lat, lon=$lon, weather=$weatherLabel, temp=${temp.toInt()}C, wind=${wind.toInt()}km/h"
+        } catch (e: Exception) {
+            "address=$address, lat=$lat, lon=$lon, weather=unavailable"
+        }
+    }
+
+    private fun weatherCodeToText(code: Int): String {
+        return when (code) {
+            0 -> "Clear Sky"
+            1, 2 -> "Partly Cloudy"
+            3 -> "Overcast"
+            45, 48 -> "Foggy"
+            51, 53, 55, 61, 63, 65 -> "Rain"
+            71, 73, 75 -> "Snow"
+            80, 81, 82 -> "Heavy Rain"
+            95, 96, 99 -> "Thunderstorm"
+            else -> "Unknown"
+        }
+    }
+
+    private suspend fun resolvePlaceEmbeddingForComparison(
+        place: FavoritePlaceEntity,
+        expectedSize: Int
+    ): FloatArray? {
+        val current = place.embedding
+        if (current != null && current.isNotEmpty() && current.size == expectedSize) {
+            return current
+        }
+
+        // Old favorites may contain fallback vectors with different dimensions; re-embed using semantic text.
+        return try {
+            val semanticText = "name: ${place.name}, category: ${place.category}, rating: ${place.rating}, latitude: ${place.latitude}, longitude: ${place.longitude}"
+            val refreshed = embeddingEngine.embed(semanticText)
+            favoritePlaceDao.insertFavorite(place.copy(embedding = refreshed))
+            refreshed
+        } catch (e: Exception) {
+            Log.e("ChatViewModel", "Failed to refresh embedding for place ${place.placeId}", e)
+            null
+        }
+    }
+
+    private fun buildDiaryEmbeddingText(entry: DiaryEntry): String {
+        val contentSnippet = entry.content.take(800)
+        return "diary title: ${entry.title}, mood: ${entry.mood}, content: $contentSnippet"
+    }
+
+    private fun blendEmbeddings(primary: FloatArray, secondary: FloatArray?): FloatArray {
+        if (secondary == null || primary.size != secondary.size) return primary
+
+        val diaryWeight = _diaryEmbeddingWeight.value
+        val primaryWeight = 1f - diaryWeight
+        return FloatArray(primary.size) { i ->
+            (primary[i] * primaryWeight) + (secondary[i] * diaryWeight)
+        }
+    }
+
+    private suspend fun ensureEmbeddingEngineReady(): Boolean {
+        if (embeddingEngine.isInitialized()) return true
+
+        val embeddingModelFile = File(
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+            "universal_sentence_encoder.tflite"
+        )
+        if (!embeddingModelFile.exists()) return false
+
+        embeddingEngine.initialize(embeddingModelFile.absolutePath)
+        return embeddingEngine.isInitialized()
+    }
+
+    private fun cosineSimilaritySafe(a: FloatArray, b: FloatArray): Float? {
+        if (a.isEmpty() || b.isEmpty() || a.size != b.size) return null
+
+        var dotProduct = 0.0f
+        var normA = 0.0f
+        var normB = 0.0f
+        for (i in a.indices) {
+            dotProduct += a[i] * b[i]
+            normA += a[i] * a[i]
+            normB += b[i] * b[i]
+        }
+
+        if (normA == 0.0f || normB == 0.0f) return null
+        return (dotProduct / (kotlin.math.sqrt(normA) * kotlin.math.sqrt(normB))).coerceIn(-1f, 1f)
     }
 
     override fun onCleared() {

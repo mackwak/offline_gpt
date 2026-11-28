@@ -3,9 +3,11 @@ package com.example.offlinegpt.ui.places
 import android.content.Context
 import android.location.Geocoder
 import android.location.Location
+import android.os.Environment
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.offlinegpt.data.engine.EmbeddingEngine
 import com.example.offlinegpt.data.local.FavoritePlaceDao
 import com.example.offlinegpt.data.local.FavoritePlaceEntity
 import com.example.offlinegpt.data.location.LocationProvider
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.*
@@ -38,7 +41,13 @@ data class PlaceItem(
     val address: String,
     val latitude: Double = 37.7749,
     val longitude: Double = -122.4194,
-    val isFavorite: Boolean = false
+    val currentOpeningHours: String? = null,
+    val websiteUri: String? = null,
+    val editorialSummary: String? = null,
+    val generativeSummary: String? = null,
+    val isFavorite: Boolean = false,
+    val embedding: FloatArray? = null,
+    val score: Float? = null
 )
 
 sealed class PlacesUiState {
@@ -51,11 +60,13 @@ sealed class PlacesUiState {
 class NearbyPlacesViewModel @Inject constructor(
     private val locationProvider: LocationProvider,
     private val favoritePlaceDao: FavoritePlaceDao,
+    private val embeddingEngine: EmbeddingEngine,
     @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private companion object {
         const val DEFAULT_PLACES_API_KEY = "AIzaSyAQmeB6_St_i76_4zpLBKOP5EWaWIl2hnY"
+        const val EMBEDDING_MODEL_FILE_NAME = "universal_sentence_encoder.tflite"
     }
 
     private val _uiState = MutableStateFlow<PlacesUiState>(PlacesUiState.Loading)
@@ -168,12 +179,18 @@ class NearbyPlacesViewModel @Inject constructor(
 
     fun onCategorySelected(category: String) {
         _selectedCategory.value = category
-        applyFilter()
+
+        viewModelScope.launch {
+            applyFilter()
+        }
+
     }
 
     fun toggleGlobalFavoritesFilter() {
         _isFavoritesOnly.value = !_isFavoritesOnly.value
-        applyFilter()
+        viewModelScope.launch {
+            applyFilter()
+        }
     }
 
     fun toggleFavorite(placeId: String) {
@@ -184,6 +201,15 @@ class NearbyPlacesViewModel @Inject constructor(
             } else {
                 val targetPlace = allFetchedPlaces.find { it.id == placeId }
                 if (targetPlace != null) {
+                    val embedding = buildPlaceEmbedding(
+                        name = targetPlace.name,
+                        category = targetPlace.category,
+                        rating = targetPlace.rating,
+                        latitude = targetPlace.latitude,
+                        longitude = targetPlace.longitude,
+                        editorialSummary = targetPlace.editorialSummary,
+                        generativeSummary = targetPlace.generativeSummary
+                    )
                     favoritePlaceDao.insertFavorite(
                         FavoritePlaceEntity(
                             placeId = targetPlace.id,
@@ -192,10 +218,24 @@ class NearbyPlacesViewModel @Inject constructor(
                             rating = targetPlace.rating,
                             address = targetPlace.address,
                             latitude = targetPlace.latitude,
-                            longitude = targetPlace.longitude
+                            longitude = targetPlace.longitude,
+                            currentOpeningHours = targetPlace.currentOpeningHours,
+                            websiteUri = targetPlace.websiteUri,
+                            editorialSummary = targetPlace.editorialSummary,
+                            generativeSummary = targetPlace.generativeSummary,
+                            embedding = embedding
                         )
                     )
                 } else {
+                    val embedding = buildPlaceEmbedding(
+                        name = "Favorite Place",
+                        category = "Local",
+                        rating = 4.5,
+                        latitude = _currentLat.value,
+                        longitude = _currentLon.value,
+                        editorialSummary = null,
+                        generativeSummary = null
+                    )
                     favoritePlaceDao.insertFavorite(
                         FavoritePlaceEntity(
                             placeId = placeId,
@@ -204,11 +244,87 @@ class NearbyPlacesViewModel @Inject constructor(
                             rating = 4.5,
                             address = "Saved Location",
                             latitude = _currentLat.value,
-                            longitude = _currentLon.value
+                            longitude = _currentLon.value,
+                            currentOpeningHours = null,
+                            websiteUri = null,
+                            editorialSummary = null,
+                            generativeSummary = null,
+                            embedding = embedding
                         )
                     )
                 }
             }
+        }
+    }
+
+    suspend fun buildPlaceEmbedding(
+        name: String,
+        category: String,
+        rating: Double,
+        latitude: Double,
+        longitude: Double,
+        editorialSummary: String?,
+        generativeSummary: String?
+    ): FloatArray = withContext(Dispatchers.IO) {
+        val embeddingText = buildString {
+            append("name: $name, category: $category, rating: $rating, latitude: $latitude, longitude: $longitude")
+            editorialSummary?.takeIf { it.isNotBlank() }?.let {
+                append(", editorialSummary: ")
+                append(it)
+            }
+            generativeSummary?.takeIf { it.isNotBlank() }?.let {
+                append(", generativeSummary: ")
+                append(it)
+            }
+        }
+
+        ensureEmbeddingEngineInitializedIfPossible()
+        if (!embeddingEngine.isInitialized()) {
+            return@withContext fallbackNumericEmbedding(name, category, rating, latitude, longitude)
+        }
+
+        return@withContext try {
+            embeddingEngine.embed(embeddingText)
+        } catch (e: Exception) {
+            Log.e("NearbyPlacesViewModel", "Failed to embed place metadata", e)
+            fallbackNumericEmbedding(name, category, rating, latitude, longitude)
+        }
+    }
+
+    private fun fallbackNumericEmbedding(
+        name: String,
+        category: String,
+        rating: Double,
+        latitude: Double,
+        longitude: Double
+    ): FloatArray {
+        return floatArrayOf(
+            normalizedHash(name),
+            normalizedHash(category),
+            rating.toFloat(),
+            latitude.toFloat(),
+            longitude.toFloat()
+        )
+    }
+
+    private fun normalizedHash(text: String): Float {
+        val hash = text.trim().lowercase(Locale.getDefault()).hashCode()
+        return hash / Int.MAX_VALUE.toFloat()
+    }
+
+    private suspend fun ensureEmbeddingEngineInitializedIfPossible() = withContext(Dispatchers.IO) {
+        if (embeddingEngine.isInitialized()) return@withContext
+
+        try {
+            val modelFile = File(
+                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
+                EMBEDDING_MODEL_FILE_NAME
+            )
+            if (modelFile.exists()) {
+                embeddingEngine.initialize(modelFile.absolutePath)
+            }
+        } catch (e: Exception) {
+            Log.e("NearbyPlacesViewModel", "Embedding engine initialization failed", e)
         }
     }
 
@@ -268,7 +384,7 @@ class NearbyPlacesViewModel @Inject constructor(
         }
     }
 
-    private fun applyFilter() {
+    suspend fun applyFilter() {
         val category = _selectedCategory.value
         val favOnly = _isFavoritesOnly.value
 
@@ -283,7 +399,21 @@ class NearbyPlacesViewModel @Inject constructor(
             matchesFavGlobal && matchesCategory
         }
 
-        _uiState.value = PlacesUiState.Success(filtered)
+        val filteredWithEmbedding = mutableListOf<PlaceItem>()
+        for (targetPlace in filtered) {
+            val embedding = buildPlaceEmbedding(
+                name = targetPlace.name,
+                category = targetPlace.category,
+                rating = targetPlace.rating,
+                latitude = targetPlace.latitude,
+                longitude = targetPlace.longitude,
+                editorialSummary = targetPlace.editorialSummary,
+                generativeSummary = targetPlace.generativeSummary
+            )
+            filteredWithEmbedding.add(targetPlace.copy(embedding = embedding))
+        }
+
+        _uiState.value = PlacesUiState.Success(filteredWithEmbedding)
     }
 
     private fun fetchFromNewGooglePlacesApi(lat: Double, lon: Double, apiKey: String, userLocation: Location?): List<PlaceItem> {
@@ -296,7 +426,7 @@ class NearbyPlacesViewModel @Inject constructor(
             conn.setRequestProperty("X-Goog-Api-Key", apiKey)
             conn.setRequestProperty(
                 "X-Goog-FieldMask",
-                "places.id,places.displayName,places.primaryType,places.rating,places.formattedAddress,places.location"
+                "places.id,places.displayName,places.primaryType,places.rating,places.formattedAddress,places.location,places.currentOpeningHours,places.websiteUri,places.editorialSummary,places.generativeSummary"
             )
             conn.setRequestProperty("X-Android-Cert", "37769772F689AEB9C03018A23636E493C2F1D60E")
             conn.setRequestProperty("X-Android-Package", context.packageName)
@@ -352,6 +482,20 @@ class NearbyPlacesViewModel @Inject constructor(
                 val locationObj = item.optJSONObject("location")
                 val placeLat = locationObj?.optDouble("latitude", lat) ?: lat
                 val placeLon = locationObj?.optDouble("longitude", lon) ?: lon
+                val websiteUri = item.optString("websiteUri", "").takeIf { it.isNotBlank() }
+                val currentOpeningHoursObj = item.optJSONObject("currentOpeningHours")
+                val currentOpeningHours = currentOpeningHoursObj
+                    ?.optJSONArray("weekdayDescriptions")
+                    ?.let { descriptions ->
+                        buildList {
+                            for (j in 0 until descriptions.length()) {
+                                val dayDescription = descriptions.optString(j)
+                                if (dayDescription.isNotBlank()) add(dayDescription)
+                            }
+                        }.takeIf { it.isNotEmpty() }?.joinToString("\n")
+                    }
+                val editorialSummary = extractSummaryText(item, "editorialSummary")
+                val generativeSummary = extractSummaryText(item, "generativeSummary")
 
                 val distanceStr = calculateDistanceString(userLocation, placeLat, placeLon)
 
@@ -365,7 +509,11 @@ class NearbyPlacesViewModel @Inject constructor(
                         address = address,
                         latitude = placeLat,
                         longitude = placeLon,
-                        isFavorite = favoritesSet.contains(id)
+                        currentOpeningHours = currentOpeningHours,
+                        websiteUri = websiteUri,
+                        editorialSummary = editorialSummary,
+                        generativeSummary = generativeSummary,
+                        isFavorite = favoritesSet.contains(id),
                     )
                 )
             }
@@ -443,6 +591,24 @@ class NearbyPlacesViewModel @Inject constructor(
             }
         }
         return "Restaurant"
+    }
+
+    private fun extractSummaryText(item: JSONObject, summaryKey: String): String? {
+        val summaryObj = item.optJSONObject(summaryKey) ?: return null
+        val directText = summaryObj.optString("text", "").takeIf { it.isNotBlank() }
+        if (directText != null) return directText
+
+        val overviewText = summaryObj
+            .optJSONObject("overview")
+            ?.optString("text", "")
+            ?.takeIf { it.isNotBlank() }
+        if (overviewText != null) return overviewText
+
+        val descriptionText = summaryObj
+            .optJSONObject("description")
+            ?.optString("text", "")
+            ?.takeIf { it.isNotBlank() }
+        return descriptionText
     }
 
     private fun getFallbackPlaces(baseLat: Double = 37.7749, baseLon: Double = -122.4194): List<PlaceItem> {

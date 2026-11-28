@@ -3,7 +3,6 @@ package com.example.offlinegpt.data.repository
 import com.example.offlinegpt.data.local.ChatDao
 import com.example.offlinegpt.data.local.ChatMessage
 import com.example.offlinegpt.data.local.ChatSession
-import com.google.mediapipe.tasks.text.textembedder.TextEmbedder
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton

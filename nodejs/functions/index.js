@@ -19,7 +19,12 @@ const rpName = 'OfflineGPT';
 //const rpID = 'offlinegpt-dev.web.app';
 const rpID = 'offlinegpt-5e735.web.app';
 
-const expectedOrigin = 'android:apk-key-hash:gK8G8CbpFLbRvSfe2OvKkyvd9QcgP5cuRoRIiXGAolg'; // release
+//const expectedOrigin = 'android:apk-key-hash:gK8G8CbpFLbRvSfe2OvKkyvd9QcgP5cuRoRIiXGAolg'; // release
+//const expectedOrigin = 'android:apk-key-hash:O_5rysjytbGGRKloc10H4QAGUol3eNpg6qjYstENWwo'; // google play
+const expectedOrigin = [
+  'android:apk-key-hash:gK8G8CbpFLbRvSfe2OvKkyvd9QcgP5cuRoRIiXGAolg', // Local / Upload key
+  'android:apk-key-hash:O_5LysjytbGGRKloc10H4QAGUol3eNpg6qjYstENWwo'  // Google Play App Signing key
+];
 
 const getErrorMessage = (error) => {
   if (error instanceof HttpsError) return error.message;

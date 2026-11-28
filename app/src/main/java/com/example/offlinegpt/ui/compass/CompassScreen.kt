@@ -2,11 +2,14 @@ package com.example.offlinegpt.ui.compass
 
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.util.Log
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -26,8 +29,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.offlinegpt.data.mbti.MbtiDescriptions
 import com.example.offlinegpt.ui.auth.AuthViewModel
 import com.example.offlinegpt.ui.chat.ChatViewModel
+import com.example.offlinegpt.ui.mbti.MbtiViewModel
 import com.example.offlinegpt.ui.weather.WeatherUiState
 import com.example.offlinegpt.ui.weather.WeatherViewModel
 
@@ -39,16 +44,35 @@ fun CompassScreen(
     onNavigateToMbti: () -> Unit = {},
     onNavigateToDiary: () -> Unit = {},
     onNavigateToFavorites: () -> Unit = {},
-    onNavigateToNearbyPlaces: () -> Unit = {},
+    onNavigateToNearbyPlaces: (String) -> Unit = {},
     chatViewModel: ChatViewModel = hiltViewModel(),
     viewModel: CompassViewModel = hiltViewModel(),
     authViewModel: AuthViewModel = hiltViewModel(),
-    weatherViewModel: WeatherViewModel = hiltViewModel()
+    weatherViewModel: WeatherViewModel = hiltViewModel(),
+    mbtiViewModel: MbtiViewModel = hiltViewModel()
 ) {
+    val moods = listOf(
+        "😊 Happy",
+        "😌 Calm",
+        "🤔 Thoughtful",
+        "⚡ Energetic",
+        "🥱 Tired",
+        "😢 Sad",
+        "😰 Anxious",
+        "🙏 Grateful",
+        "🤩 Excited",
+        "🕊️ Peaceful",
+        "😡 Angry",
+        "🤒 Sick",
+        "🥰 Loved",
+        "😕 Confused"
+    )
     val azimuth by viewModel.azimuth.collectAsState()
     val sunAzimuth by viewModel.sunAzimuth.collectAsState()
+    val isShowMoodDialog by viewModel.isShowMoodDialog.collectAsState()
     val isShowMenuDialog by viewModel.isShowMenuDialog.collectAsState()
     val isShowDeleteMenuDialog by viewModel.isShowDeleteMenuDialog.collectAsState()
+    val isShowMbtiDialog by viewModel.isShowMbtiDialog.collectAsState()
     val aiLocationInfo by chatViewModel.aiLocationInfo.collectAsState()
     val isDownloading by chatViewModel.isDownloading.collectAsState()
     val downloadProgress by chatViewModel.downloadProgress.collectAsState()
@@ -58,9 +82,37 @@ fun CompassScreen(
     val errorMessage = chatViewModel.errorMessage.collectAsState(null)
     val modelReady = chatViewModel.isModelReady.collectAsState(false)
     val uiState = weatherViewModel.uiState.collectAsState()
+    var selectedMood by remember { mutableStateOf("😊 Happy") }
 
     LaunchedEffect(Unit) {
         chatViewModel.validateModel()
+    }
+
+    if (isShowMbtiDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissMbtiDialog() },
+            title = { Text("Your MBTI is required", fontSize = 16.sp) },
+            text = {
+                Text("For on-device recommendations, do you want to try MBTI test?", fontSize = 15.sp)
+            },
+            confirmButton = {
+
+                TextButton(onClick = {
+                    viewModel.dismissMbtiDialog()
+                }) {
+                    Text("No")
+                }
+
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    onNavigateToMbti()
+                    viewModel.dismissMbtiDialog()
+                }) {
+                    Text("Yes")
+                }
+            }
+        )
     }
 
     if (isShowDeleteMenuDialog) {
@@ -90,6 +142,73 @@ fun CompassScreen(
         )
     }
 
+    if (isShowMoodDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissMoodDialog() },
+            title = { Text("How's your today?", fontSize = 16.sp) },
+            text = {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(moods) { mood ->
+                        FilterChip(
+                            selected = selectedMood == mood,
+                            onClick = { selectedMood = mood },
+                            label = { Text(mood, style = MaterialTheme.typography.bodySmall) }
+                        )
+                    }
+                }
+
+
+            },
+            confirmButton = {
+
+
+            },
+            dismissButton = {
+                TextButton(onClick = {
+/*
+                    val lastHistory = mbtiViewModel.history.value.lastOrNull()
+                    if (lastHistory != null) {
+                        Log.d("MBDI", "mbtiType: ${lastHistory.mbtiType}")
+                        Log.d("MBDI", "mbtiType: ${MbtiDescriptions.getDescription(lastHistory.mbtiType)}")
+                        chatViewModel.pickBestFavoritePlaceByLocationAndWeather(lastHistory.mbtiType, topK = 3) { decision ->
+                            if (decision.topCandidates.isNotEmpty()) {
+                                decision.topCandidates.forEachIndexed { index, match ->
+                                    Log.d(
+                                        "MBDI",
+                                        "Top ${index + 1} for ${match.mbtiType}: ${match.place.name} (similarity=${match.similarity})"
+                                    )
+                                }
+                                Log.d("MBDI", "Context: ${decision.locationWeatherSummary}")
+                                Log.d("MBDI", "Agent reason: ${decision.agentReason}")
+                                decision.selected?.let { selected ->
+                                    Log.d("MBDI", "Selected: ${selected.place.name}")
+                                    onNavigateToFavorites(selected.place.placeId, decision.agentReason)
+                                } ?: run {
+                                    onNavigateToFavorites(null, decision.agentReason)
+                                }
+                            } else {
+                                Log.w("MBDI", "No favorite place match available.")
+                                onNavigateToFavorites(null, null)
+                            }
+                        }
+
+                    } else {
+                        Log.w("MBDI", "No MBTI history found yet.")
+                    }
+*/
+
+                    onNavigateToNearbyPlaces(selectedMood)
+                    viewModel.dismissMoodDialog()
+                }) {
+                    Text("Choose")
+                }
+            }
+        )
+    }
+
     if (isShowMenuDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissMenuDialog() },
@@ -108,7 +227,7 @@ fun CompassScreen(
                     ) {
                         Text("MBTI Diagnostic")
                     }
-
+/*
                     Button(
                         onClick = {
                             viewModel.dismissMenuDialog()
@@ -118,7 +237,7 @@ fun CompassScreen(
                     ) {
                         Text("Daily Diary")
                     }
-
+*/
                     Button(
                         onClick = {
                             viewModel.dismissMenuDialog()
@@ -487,8 +606,20 @@ fun CompassScreen(
                 if (authViewModel.isLoggedIn) {
                     Button(
                         onClick = {
-                            onNavigateToNearbyPlaces()
-                        },
+
+                            if (mbtiViewModel.hasMbti()) {
+
+                                viewModel.showMoodDialog()
+                             //   onNavigateToDiary()
+
+                             //   onNavigateToNearbyPlaces()
+
+                            } else {
+
+                                viewModel.showMbtiDialog()
+                            }
+
+                                  },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFFD32F2F) // Sets the actual red background color
                         ),
