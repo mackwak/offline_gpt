@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(
                     navController = navController,
-                    startDestination = "home",
+                    startDestination = "compass",
                     modifier = Modifier.fillMaxSize()
                 ) {
                     composable("login") {

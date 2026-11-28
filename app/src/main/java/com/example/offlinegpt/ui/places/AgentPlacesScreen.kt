@@ -487,7 +487,7 @@ fun AgentPlacesScreen(
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
-                                                    text = place.embedding?.joinToString(prefix = "[", postfix = "]") ?: "No Embedding",
+                                                    text = place.name,
                                                     style = MaterialTheme.typography.titleMedium,
                                                     fontWeight = FontWeight.Bold
                                                 )

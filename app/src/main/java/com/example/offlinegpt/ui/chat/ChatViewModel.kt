@@ -239,6 +239,10 @@ class ChatViewModel @Inject constructor(
             return null
         }
 
+        if (!checkIfEmbeddingFileExist())  {
+            downloadModelFile()
+        }
+
         val fileName = "gemma-4-E2B-it.litertlm"
 
         val modelUrl = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/$fileName"
