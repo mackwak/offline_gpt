@@ -5,53 +5,32 @@
 -dontwarn org.tensorflow.lite.InterpreterFactoryApi
 -dontwarn org.tensorflow.lite.annotations.UsedByReflection
 
-# Keep Protobuf Lite generated message fields and classes accessed reflectively
+# Keep Protobuf Lite generated messages and fields accessed reflectively
 -keep class com.google.protobuf.** { *; }
--keepclassmembers class com.google.protobuf.** { *; }
-
 -keep class * extends com.google.protobuf.GeneratedMessageLite { *; }
--keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
-    <fields>;
-}
 
-# Keep MediaPipe classes and fields from obfuscation or removal
+# Keep MediaPipe classes and members from stripping or renaming
 -keep class com.google.mediapipe.** { *; }
--keepclassmembers class com.google.mediapipe.** { *; }
 -dontwarn com.google.mediapipe.**
 
-# Keep TensorFlow Lite classes
+# Keep Flogger classes for reflection / caller-finder stack inspection
+-keep class com.google.common.flogger.** { *; }
+-dontwarn com.google.common.flogger.**
+
+# Keep debug and reflection attributes needed for stack traces and signatures
+-keepattributes LineNumberTable,SourceFile,EnclosingMethod,InnerClasses,Signature,*Annotation*
+
+# Keep TensorFlow Lite classes and members
 -keep class org.tensorflow.lite.** { *; }
--keepclassmembers class org.tensorflow.lite.** { *; }
 -dontwarn org.tensorflow.lite.**
 
-# Keep LiteRT-LM classes and methods from being obfuscated or removed
+# Keep LiteRT / LiteRT-LM classes and JNI callback implementations
+-keep class com.google.ai.edge.litert.** { *; }
 -keep class com.google.ai.edge.litertlm.** { *; }
--keepclassmembers class com.google.ai.edge.litertlm.** {
-    *;
-}
-
-# Keep JNI callback classes and their methods (like onMessage and onDone) used by LiteRtLmJni
 -keepclassmembers class com.google.ai.edge.litertlm.LiteRtLmJni* {
     native <methods>;
     <methods>;
 }
-
--keepclassmembers class * implements com.google.ai.edge.litertlm.LiteRtLmJni$JniMessageCallback {
-    <methods>;
-}
-
--keep class com.google.ai.edge.litertlm.LiteRtLmJni$* { *; }
-
--keep class com.google.ai.edge.litertlm.LiteRtLmJni$JniMessageCallback {
+-keep class * implements com.google.ai.edge.litertlm.LiteRtLmJni$JniMessageCallback {
     *;
 }
-
-# Alternatively, if Lyh is the obfuscated name or your specific callback wrapper class:
--keep class * implements com.google.ai.edge.litertlm.LiteRtLmJni$JniMessageCallback {
-    <methods>;
-}
-
-
--keep class com.google.mediapipe.tasks.** { *; }
--keep interface com.google.mediapipe.tasks.** { *; }
--keep class com.google.ai.edge.litert.** { *; }
