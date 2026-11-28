@@ -15,8 +15,8 @@ android {
         applicationId = "compass.assistant"
         minSdk = 25
         targetSdk = 37
-        versionCode = 20
-        versionName = "1.0"
+        versionCode = 21
+        versionName = "1.1"
 
         val hfToken = (project.findProperty("HF_TOKEN") as String?) ?: ""
         buildConfigField("String", "HF_TOKEN", "\"$hfToken\"")

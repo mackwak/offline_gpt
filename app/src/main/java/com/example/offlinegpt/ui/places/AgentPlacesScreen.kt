@@ -4,28 +4,29 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Navigation
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -39,9 +40,6 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import java.net.URLDecoder
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.filled.Info
 import com.example.offlinegpt.ui.chat.ChatViewModel
 import com.example.offlinegpt.ui.mbti.MbtiViewModel
 
@@ -55,25 +53,18 @@ fun AgentPlacesScreen(
     mbtiViewModel: MbtiViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val locationQuery by viewModel.locationQuery.collectAsState()
-    val addressCandidates by viewModel.addressCandidates.collectAsState()
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val currentLat by viewModel.currentLat.collectAsState()
     val currentLon by viewModel.currentLon.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
 
-   val highlightedPlaceId = remember {
-       mutableStateOf<String?>(null)
-   }
-
-    var viewMode by remember { mutableStateOf(PlacesViewMode.LIST) }
+    val agentReasonedPlaceId = remember { mutableStateOf<String?>(null) }
     var selectedPlace by remember { mutableStateOf<PlaceItem?>(null) }
-    var agentReason by remember {
-        mutableStateOf<String?>(null)
-    }
-    var showReasonDialog by remember {
-        mutableStateOf(!agentReason.isNullOrBlank()) }
+    var viewMode by remember { mutableStateOf(PlacesViewMode.LIST) }
+    var agentReason by remember { mutableStateOf<String?>(null) }
+    var showReasonDialog by remember { mutableStateOf(!agentReason.isNullOrBlank()) }
     val listState = rememberLazyListState()
+
     val decodedAgentReason = remember(agentReason) {
         agentReason
             ?.let { raw -> runCatching { URLDecoder.decode(raw, Charsets.UTF_8.name()) }.getOrDefault(raw) }
@@ -83,20 +74,18 @@ fun AgentPlacesScreen(
             ?.trim()
             .orEmpty()
     }
-    val highlightedPlace = (uiState as? PlacesUiState.Success)
+
+    val agentReasonedPlace = (uiState as? PlacesUiState.Success)
         ?.places
-        ?.firstOrNull { highlightedPlaceId.value != null && it.id == highlightedPlaceId.value }
+        ?.firstOrNull { agentReasonedPlaceId.value != null && it.id == agentReasonedPlaceId.value }
 
     LaunchedEffect(uiState, selectedMood) {
         val state = uiState
 
         if (state is PlacesUiState.Success && !selectedMood.isNullOrBlank()) {
-
             val lastHistory = mbtiViewModel.history.value.lastOrNull()
             if (lastHistory != null) {
-
                 chatViewModel.pickBestFavoritePlaceByMood(lastHistory.mbtiType, selectedMood, state.places, topK = 3) { decision ->
-
                     if (decision.topCandidates.isNotEmpty()) {
                         decision.topCandidates.forEachIndexed { index, match ->
                             Log.d(
@@ -107,11 +96,10 @@ fun AgentPlacesScreen(
                         Log.d("MBDI", "Context: ${decision.locationWeatherSummary}")
                         Log.d("MBDI", "Agent reason: ${decision.agentReason}")
                         decision.selected?.let { selected ->
-
                             Log.d("MBDI", "Selected: ${selected.place.name}")
                             agentReason = decision.agentReason
                             showReasonDialog = true
-                            highlightedPlaceId.value = selected.place.placeId
+                            agentReasonedPlaceId.value = selected.place.placeId
                             selectedPlace = state.places.firstOrNull { it.id == selected.place.placeId }
                         }
                     } else {
@@ -122,9 +110,9 @@ fun AgentPlacesScreen(
         }
     }
 
-    LaunchedEffect(highlightedPlaceId.value, uiState) {
+    LaunchedEffect(agentReasonedPlaceId.value, uiState) {
         val state = uiState as? PlacesUiState.Success ?: return@LaunchedEffect
-        val targetId = highlightedPlaceId.value ?: return@LaunchedEffect
+        val targetId = agentReasonedPlaceId.value ?: return@LaunchedEffect
         val index = state.places.indexOfFirst { it.id == targetId }
         if (index >= 0) {
             listState.animateScrollToItem(index)
@@ -196,12 +184,13 @@ fun AgentPlacesScreen(
                         style = MaterialTheme.typography.bodyMedium
                     )
 
-                    highlightedPlace?.let { place ->
+                    agentReasonedPlace?.let { place ->
                         HorizontalDivider()
                         Text(
-                            text = place.name,
+                            text = "🤖 AI Pick: ${place.name}",
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF8E24AA)
                         )
 
                         place.generativeSummary?.takeIf { it.isNotBlank() }?.let { summary ->
@@ -263,7 +252,7 @@ fun AgentPlacesScreen(
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = "Show AI Recommendation Reason",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = Color(0xFF8E24AA)
                             )
                         }
                     }
@@ -347,17 +336,24 @@ fun AgentPlacesScreen(
                                 cameraPositionState = cameraPositionState
                             ) {
                                 state.places.forEach { place ->
-                                    val markerHue = getCategoryMarkerHue(place.category)
+                                    val isAgentPick = agentReasonedPlaceId.value != null && place.id == agentReasonedPlaceId.value
+                                    val isSelected = selectedPlace?.id == place.id
+
+                                    val markerHue = when {
+                                        isAgentPick -> BitmapDescriptorFactory.HUE_VIOLET
+                                        isSelected -> BitmapDescriptorFactory.HUE_AZURE
+                                        else -> getCategoryMarkerHue(place.category)
+                                    }
+
                                     Marker(
                                         state = rememberMarkerState(
                                             position = LatLng(place.latitude, place.longitude)
                                         ),
-                                        title = place.name,
+                                        title = if (isAgentPick) "🤖 AI Pick: ${place.name}" else place.name,
                                         snippet = "${place.category} • ⭐ ${place.rating}",
                                         icon = BitmapDescriptorFactory.defaultMarker(markerHue),
                                         onClick = {
                                             selectedPlace = place
-                                            highlightedPlaceId.value = place.id
                                             false
                                         }
                                     )
@@ -366,6 +362,7 @@ fun AgentPlacesScreen(
 
                             // Info Overlay Card when a Pin is selected
                             selectedPlace?.let { place ->
+                                val isAgentPick = agentReasonedPlaceId.value != null && place.id == agentReasonedPlaceId.value
                                 Card(
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
@@ -385,12 +382,17 @@ fun AgentPlacesScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                text = place.name,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                 modifier = Modifier.weight(1f)
-                                            )
+                                            ) {
+                                                Text(
+                                                    text = place.name,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
 
                                             IconButton(onClick = { selectedPlace = null }) {
                                                 Icon(Icons.Default.Close, contentDescription = "Close Popup")
@@ -474,22 +476,29 @@ fun AgentPlacesScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(state.places, key = { it.id }) { place ->
-                                    val isHighlighted = highlightedPlaceId.value != null && place.id == highlightedPlaceId.value
+                                    val isAgentPick = agentReasonedPlaceId.value != null && place.id == agentReasonedPlaceId.value
+                                    val isSelected = selectedPlace?.id == place.id
+
+                                    val cardBorder = when {
+                                        isAgentPick -> BorderStroke(2.dp, Color(0xFF8E24AA))
+                                        isSelected -> BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                                        else -> null
+                                    }
+
+                                    val cardBackground = when {
+                                        isAgentPick -> Color(0xFFF3E5F5)
+                                        isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        else -> MaterialTheme.colorScheme.surfaceVariant
+                                    }
+
                                     Card(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                highlightedPlaceId.value = place.id
                                                 selectedPlace = place
                                             },
-                                        border = if (isHighlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (isHighlighted) {
-                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                                            } else {
-                                                MaterialTheme.colorScheme.surfaceVariant
-                                            }
-                                        )
+                                        border = cardBorder,
+                                        colors = CardDefaults.cardColors(containerColor = cardBackground)
                                     ) {
                                         Row(
                                             modifier = Modifier
@@ -499,18 +508,28 @@ fun AgentPlacesScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = place.name,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                if (isHighlighted) {
-                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
                                                     Text(
-                                                        text = "AI Pick",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.primary
+                                                        text = place.name,
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.Bold
                                                     )
+                                                    if (isAgentPick) {
+                                                        Surface(
+                                                            color = Color(0xFF8E24AA),
+                                                            shape = MaterialTheme.shapes.extraSmall
+                                                        ) {
+                                                            Text(
+                                                                text = "🤖 AI Pick",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = Color.White,
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                                 Spacer(modifier = Modifier.height(2.dp))
                                                 Text(
@@ -597,4 +616,3 @@ private fun launchWebUrl(context: Context, url: String) {
         Log.e("NearbyPlacesScreen", "Failed to open web url", it)
     }
 }
-
