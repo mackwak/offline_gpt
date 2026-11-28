@@ -50,3 +50,8 @@
 -keep class * implements com.google.ai.edge.litertlm.LiteRtLmJni$JniMessageCallback {
     <methods>;
 }
+
+
+-keep class com.google.mediapipe.tasks.** { *; }
+-keep interface com.google.mediapipe.tasks.** { *; }
+-keep class com.google.ai.edge.litert.** { *; }
