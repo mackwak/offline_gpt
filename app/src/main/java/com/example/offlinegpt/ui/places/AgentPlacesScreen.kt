@@ -39,6 +39,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.*
 import java.net.URLDecoder
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.filled.Info
 import com.example.offlinegpt.ui.chat.ChatViewModel
@@ -77,6 +78,9 @@ fun AgentPlacesScreen(
         agentReason
             ?.let { raw -> runCatching { URLDecoder.decode(raw, Charsets.UTF_8.name()) }.getOrDefault(raw) }
             ?.replace('+', ' ')
+            ?.replace(Regex("""(?m)^CHOICE\s*:\s*\d+\s*[\r\n]*""", RegexOption.IGNORE_CASE), "")
+            ?.replace(Regex("""^REASON\s*:\s*""", RegexOption.IGNORE_CASE), "")
+            ?.trim()
             .orEmpty()
     }
     val highlightedPlace = (uiState as? PlacesUiState.Success)
@@ -106,6 +110,7 @@ fun AgentPlacesScreen(
 
                             Log.d("MBDI", "Selected: ${selected.place.name}")
                             agentReason = decision.agentReason
+                            showReasonDialog = true
                             highlightedPlaceId.value = selected.place.placeId
                             selectedPlace = state.places.firstOrNull { it.id == selected.place.placeId }
                         }
@@ -117,7 +122,7 @@ fun AgentPlacesScreen(
         }
     }
 
-    LaunchedEffect(highlightedPlaceId.value) {
+    LaunchedEffect(highlightedPlaceId.value, uiState) {
         val state = uiState as? PlacesUiState.Success ?: return@LaunchedEffect
         val targetId = highlightedPlaceId.value ?: return@LaunchedEffect
         val index = state.places.indexOfFirst { it.id == targetId }
@@ -352,6 +357,7 @@ fun AgentPlacesScreen(
                                         icon = BitmapDescriptorFactory.defaultMarker(markerHue),
                                         onClick = {
                                             selectedPlace = place
+                                            highlightedPlaceId.value = place.id
                                             false
                                         }
                                     )
@@ -470,10 +476,16 @@ fun AgentPlacesScreen(
                                 items(state.places, key = { it.id }) { place ->
                                     val isHighlighted = highlightedPlaceId.value != null && place.id == highlightedPlaceId.value
                                     Card(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                highlightedPlaceId.value = place.id
+                                                selectedPlace = place
+                                            },
+                                        border = if (isHighlighted) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
                                         colors = CardDefaults.cardColors(
                                             containerColor = if (isHighlighted) {
-                                                MaterialTheme.colorScheme.primaryContainer
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                                             } else {
                                                 MaterialTheme.colorScheme.surfaceVariant
                                             }

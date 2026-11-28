@@ -823,7 +823,7 @@ class ChatViewModel @Inject constructor(
                     .take(safeTopK)
 
                 val contextSummary = getLocationWeatherSummary()
-                val decisionPrompt = buildFavoriteDecisionPrompt(mbti, contextSummary, topMatches)
+                val decisionPrompt = buildFavoriteDecisionPrompt(mbti, mood,contextSummary, topMatches)
                 val agentAnswer = getCurrentResponse(decisionPrompt)
                 val selected = parseSelectedCandidate(agentAnswer, topMatches) ?: topMatches.firstOrNull()
 
@@ -952,7 +952,7 @@ class ChatViewModel @Inject constructor(
                 }
 
                 val contextSummary = getLocationWeatherSummary()
-                val decisionPrompt = buildFavoriteDecisionPrompt(mbtiType, contextSummary, topMatches)
+                val decisionPrompt = buildFavoriteDecisionPrompt(mbtiType, "", contextSummary, topMatches)
                 val agentAnswer = getCurrentResponse(decisionPrompt)
                 val selected = parseSelectedCandidate(agentAnswer, topMatches) ?: topMatches.firstOrNull()
 
@@ -974,6 +974,7 @@ class ChatViewModel @Inject constructor(
 
     private fun buildFavoriteDecisionPrompt(
         mbtiType: String,
+        mood: String,
         locationWeatherSummary: String,
         candidates: List<FavoritePlaceMatch>
     ): String {
@@ -985,6 +986,7 @@ class ChatViewModel @Inject constructor(
             You are a local trip planning agent.
             Select exactly ONE best place among 3 candidates.
 
+            Now I feel $mood
             User MBTI: $mbtiType
             Current location/weather: $locationWeatherSummary
 
@@ -993,7 +995,7 @@ class ChatViewModel @Inject constructor(
 
             Output format:
             CHOICE: <1|2|3>
-            REASON: <short reason considering weather + location + MBTI>
+            REASON: <short reason considering weather + location + MBTI + mood>
         """.trimIndent()
     }
 
